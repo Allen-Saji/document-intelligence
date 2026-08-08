@@ -1,0 +1,133 @@
+{
+  "schema_version": 1,
+  "id": "phase-0-parser-v1",
+  "description": "Small reproducible corpus for layout, OCR, table, code, formula, and geometry validation.",
+  "documents": [
+    {
+      "id": "doclaynet-paper",
+      "title": "DocLayNet: A Large Human-Annotated Dataset for Document-Layout Analysis",
+      "filename": "doclaynet-paper.pdf",
+      "source_url": "https://raw.githubusercontent.com/docling-project/docling/8050c42be2b179504445cb8f3c75655e27cbb662/tests/data/pdf/sources/2206.01062.pdf",
+      "source_page": "https://arxiv.org/abs/2206.01062",
+      "sha256": "5dfbd8c115a15fd3396b68409124cfee29fc8efac7b5c846634ff924e635e0dc",
+      "byte_size": 4310680,
+      "categories": ["born-digital", "multi-column", "table-heavy", "mixed-text-image"],
+      "profile": "standard",
+      "rights": {
+        "status": "publicly-accessible-local-evaluation",
+        "reference_url": "https://arxiv.org/abs/2206.01062",
+        "note": "Fetch for local evaluation only. Do not commit or redistribute the PDF."
+      },
+      "expected": {
+        "min_page_count": 9,
+        "min_text_chars": 10000,
+        "min_geometry_coverage": 0.95,
+        "min_tables": 1,
+        "min_pictures": 1,
+        "min_labels": {}
+      },
+      "manual_review": [
+        {
+          "pages": [1, 4, 7],
+          "checks": ["reading-order", "table-structure", "bounding-boxes"],
+          "note": "Check dense columns, the first-page collage, tables, captions, and figure placement."
+        }
+      ]
+    },
+    {
+      "id": "docling-code-formula",
+      "title": "Docling code and formula regression fixture",
+      "filename": "docling-code-formula.pdf",
+      "source_url": "https://raw.githubusercontent.com/docling-project/docling/8050c42be2b179504445cb8f3c75655e27cbb662/tests/data/pdf/sources/code_and_formula.pdf",
+      "source_page": "https://github.com/docling-project/docling/tree/8050c42be2b179504445cb8f3c75655e27cbb662/tests/data/pdf/sources",
+      "sha256": "6cb63fba2ad42dd0e0afe6a26dcf3b3bff5a86919c4c06157c71c65ebc0fc9e6",
+      "byte_size": 89031,
+      "categories": ["born-digital", "code-heavy", "formula-heavy"],
+      "profile": "code-formula-enriched",
+      "rights": {
+        "status": "publicly-accessible-local-evaluation",
+        "reference_url": "https://github.com/docling-project/docling/blob/8050c42be2b179504445cb8f3c75655e27cbb662/LICENSE",
+        "note": "Docling repository fixture fetched for local evaluation. Keep the PDF out of this repository."
+      },
+      "expected": {
+        "min_page_count": 2,
+        "min_text_chars": 1000,
+        "min_geometry_coverage": 0.95,
+        "min_tables": 0,
+        "min_pictures": 0,
+        "min_labels": {"code": 1, "formula": 1}
+      },
+      "manual_review": [
+        {
+          "pages": [1, 2],
+          "checks": ["code-fidelity", "formula-fidelity", "bounding-boxes"],
+          "note": "Compare code whitespace and formula symbols against the rendered pages."
+        }
+      ]
+    },
+    {
+      "id": "faa-handbook-sample",
+      "title": "FAA Aviation Maintenance Technician Handbook sample",
+      "filename": "faa-handbook-sample.pdf",
+      "source_url": "https://raw.githubusercontent.com/docling-project/docling/8050c42be2b179504445cb8f3c75655e27cbb662/tests/data/pdf/sources/amt_handbook_sample.pdf",
+      "source_page": "https://github.com/docling-project/docling/tree/8050c42be2b179504445cb8f3c75655e27cbb662/tests/data/pdf/sources",
+      "sha256": "7099fe05ade36067cf66e72b23277972a1a2b7d2da1cb82c8d690efd70143fe0",
+      "byte_size": 673416,
+      "categories": ["born-digital", "multi-column", "mixed-text-image"],
+      "profile": "standard",
+      "rights": {
+        "status": "publicly-accessible-local-evaluation",
+        "reference_url": "https://www.faa.gov/regulations_policies/handbooks_manuals/aviation",
+        "note": "United States FAA source material. Fetch the Docling sample for local evaluation and do not commit it."
+      },
+      "expected": {
+        "min_page_count": 1,
+        "min_text_chars": 1000,
+        "min_geometry_coverage": 0.95,
+        "min_tables": 0,
+        "min_pictures": 1,
+        "min_labels": {}
+      },
+      "manual_review": [
+        {
+          "pages": [1],
+          "checks": ["reading-order", "text-fidelity", "bounding-boxes"],
+          "note": "Check callouts, headings, image placement, and the two-column reading sequence."
+        }
+      ]
+    },
+    {
+      "id": "loc-wireless-telegraph-scan",
+      "title": "Instructions for the Use of Wireless-Telegraph Apparatus",
+      "filename": "loc-wireless-telegraph-apparatus.pdf",
+      "source_url": "https://tile.loc.gov/storage-services/public/gdc/00531396674/00531396674.pdf",
+      "source_page": "https://www.loc.gov/item/10003482/",
+      "sha256": "077625df572b6923cf0a4633acb404d239f7057b478b19e86a072a453c749f96",
+      "byte_size": 15992384,
+      "categories": ["scanned", "multi-column", "mixed-text-image"],
+      "profile": "full-page-ocr",
+      "page_range": [9, 13],
+      "rights": {
+        "status": "public-domain",
+        "reference_url": "https://www.loc.gov/item/10003482/",
+        "note": "The Library of Congress item record states that this book is public domain and free to use and reuse."
+      },
+      "expected": {
+        "min_page_count": 5,
+        "min_text_chars": 1000,
+        "min_geometry_coverage": 0.9,
+        "max_empty_pages": 0,
+        "min_tables": 0,
+        "min_pictures": 1,
+        "min_labels": {}
+      },
+      "manual_review": [
+        {
+          "pages": [9, 10, 13],
+          "checks": ["ocr-fidelity", "reading-order", "bounding-boxes"],
+          "note": "Check narrow text columns, degraded type, page numbers, and the aerial-wire diagram."
+        }
+      ]
+    }
+  ]
+}
