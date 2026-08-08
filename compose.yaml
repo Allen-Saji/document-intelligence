@@ -1,0 +1,72 @@
+name: document-intelligence
+
+services:
+  postgres:
+    image: postgres:18.4-bookworm
+    environment:
+      POSTGRES_DB: document_intelligence
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: ${LOCAL_POSTGRES_ADMIN_PASSWORD:-local-admin-only}
+      APP_DB_PASSWORD: ${LOCAL_POSTGRES_APP_PASSWORD:-local-app-only}
+    ports:
+      - "127.0.0.1:5439:5432"
+    volumes:
+      - document_intelligence_postgres:/var/lib/postgresql
+      - ./infra/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d document_intelligence"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  redis:
+    image: redis:8.2-bookworm
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports:
+      - "127.0.0.1:6381:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: unless-stopped
+
+  opensearch:
+    profiles: ["search"]
+    image: opensearchproject/opensearch:3.7.0
+    environment:
+      discovery.type: single-node
+      DISABLE_SECURITY_PLUGIN: "true"
+      OPENSEARCH_JAVA_OPTS: "-Xms512m -Xmx512m"
+    ports:
+      - "127.0.0.1:9202:9200"
+    volumes:
+      - document_intelligence_opensearch:/usr/share/opensearch/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:9200/_cluster/health >/dev/null"]
+      interval: 10s
+      timeout: 5s
+      retries: 18
+    restart: unless-stopped
+
+  temporal:
+    profiles: ["workflow"]
+    image: temporalio/auto-setup:1.31.2
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB: postgres12
+      DB_PORT: 5432
+      POSTGRES_USER: postgres
+      POSTGRES_PWD: ${LOCAL_POSTGRES_ADMIN_PASSWORD:-local-admin-only}
+      POSTGRES_SEEDS: postgres
+      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
+    ports:
+      - "127.0.0.1:7234:7233"
+    restart: unless-stopped
+
+volumes:
+  document_intelligence_postgres:
+  document_intelligence_opensearch:
