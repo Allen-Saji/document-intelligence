@@ -81,3 +81,10 @@ The production contract targets S3-compatible storage. Select the local emulator
 ## Telemetry
 
 The trace proof must propagate one trace across API, Temporal workflow, parser activity, index activity, OpenSearch query, and generation stub. It must verify that document bodies and secret values are absent from exported telemetry by default.
+
+## Retrieval dataset
+
+The seed retrieval dataset is `spikes/retrieval/cases.json`. It is a versioned contract
+over document and physical-page evidence, not a release-sized evaluation set. Run its
+validation with the normal test suite. Expand it with human-labeled cases before making
+retrieval quality claims.
