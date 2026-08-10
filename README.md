@@ -2,7 +2,7 @@
 
 Document Intelligence is a production-focused application for investigating technical PDFs. It is designed to answer questions with claim-level citations that resolve to an immutable document version, physical PDF page, source passage, and page region.
 
-The repository is in Phase 0 architecture validation. It is not deployed and does not yet make production-readiness claims.
+Phase 0 architecture validation is complete. The repository is not deployed and does not make production-readiness claims.
 
 ## Product contract
 
@@ -35,7 +35,8 @@ The repository already contains executable application contracts for:
 - evidence and citation validation
 - liveness and readiness endpoints
 
-It also contains a pinned four-document parser corpus and a repeatable Docling benchmark.
+It also contains a pinned four-document parser corpus, a repeatable Docling benchmark, and saved
+Phase 0 probes for real retrieval, Temporal recovery, S3-compatible storage, and tracing.
 The benchmark is deliberately a gate, not a success demo: scanned-page, diagram, reading-order,
 and picture-contained-text failures must be quarantined before extracted content can enter the
 retrieval index. Source PDFs, model files, and generated benchmark reports remain local and are

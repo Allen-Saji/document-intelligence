@@ -19,13 +19,8 @@ def _terms(values: Sequence[object]) -> list[str]:
     return [str(value) for value in values]
 
 
-def build_tenant_scoped_hybrid_query(
-    query: HybridQueryInput,
-    tenant: TenantContext,
-) -> dict[str, Any]:
-    """Build an OpenSearch hybrid query with mandatory authorization pre-filters."""
-
-    authorization_filter: dict[str, Any] = {
+def build_tenant_authorization_filter(tenant: TenantContext) -> dict[str, Any]:
+    return {
         "bool": {
             "filter": [
                 {"term": {"organization_id": str(tenant.organization_id)}},
@@ -36,22 +31,75 @@ def build_tenant_scoped_hybrid_query(
         }
     }
 
+
+def _source_fields() -> dict[str, list[str]]:
+    return {
+        "includes": [
+            "organization_id",
+            "workspace_id",
+            "corpus_id",
+            "document_id",
+            "document_version_id",
+            "chunk_id",
+            "page_number",
+            "block_type",
+            "content",
+            "is_searchable",
+        ]
+    }
+
+
+def build_tenant_scoped_lexical_query(
+    query: HybridQueryInput,
+    tenant: TenantContext,
+) -> dict[str, Any]:
+    return {
+        "size": query.lexical_candidates,
+        "_source": _source_fields(),
+        "query": {
+            "bool": {
+                "must": {
+                    "match": {
+                        "content": {
+                            "query": query.question,
+                            "operator": "or",
+                        }
+                    }
+                },
+                "filter": build_tenant_authorization_filter(tenant),
+            }
+        },
+    }
+
+
+def build_tenant_scoped_dense_query(
+    query: HybridQueryInput,
+    tenant: TenantContext,
+) -> dict[str, Any]:
+    return {
+        "size": query.dense_candidates,
+        "_source": _source_fields(),
+        "query": {
+            "knn": {
+                "embedding": {
+                    "vector": list(query.query_vector),
+                    "k": query.dense_candidates,
+                    "filter": build_tenant_authorization_filter(tenant),
+                }
+            }
+        },
+    }
+
+
+def build_tenant_scoped_hybrid_query(
+    query: HybridQueryInput,
+    tenant: TenantContext,
+) -> dict[str, Any]:
+    """Build an OpenSearch hybrid query with mandatory authorization pre-filters."""
+
     return {
         "size": max(query.lexical_candidates, query.dense_candidates),
-        "_source": {
-            "includes": [
-                "organization_id",
-                "workspace_id",
-                "corpus_id",
-                "document_id",
-                "document_version_id",
-                "chunk_id",
-                "page_number",
-                "block_type",
-                "content",
-                "is_searchable",
-            ]
-        },
+        "_source": _source_fields(),
         "query": {
             "hybrid": {
                 "queries": [
@@ -72,7 +120,7 @@ def build_tenant_scoped_hybrid_query(
                         }
                     },
                 ],
-                "filter": authorization_filter,
+                "filter": build_tenant_authorization_filter(tenant),
             }
         },
     }

@@ -1,6 +1,8 @@
 # Phase 0 Spikes
 
-These probes validate foundational choices inside the real repository. A spike is complete only when it produces a saved result and a keep, replace, or constrain decision.
+These probes validate foundational choices inside the real repository. Phase 0 is complete only
+when each probe produces a saved result and a keep, replace, or constrain decision. The suite
+closed on 2026-08-11; remaining work belongs to Phase 1 production hardening.
 
 ## Parser and geometry
 
@@ -64,7 +66,18 @@ The verification script proves both allowed access and cross-tenant denial throu
 docker compose --profile search up -d opensearch
 ```
 
-The first test must create a versioned chunk index, ingest two tenants, run lexical, dense, and hybrid queries, and prove the mandatory tenant pre-filter prevents cross-tenant hits.
+The real runner creates a versioned chunk index from the saved Docling page artifacts, embeds it with the pinned BGE model, runs lexical, dense, hybrid, and CrossEncoder-reranked variants, and proves the mandatory tenant pre-filter prevents cross-tenant hits:
+
+```bash
+docker compose --profile search up -d opensearch
+HF_HOME=/tmp/document-intelligence-hf uv run --extra phase0 python spikes/retrieval/real_run.py
+```
+
+The selected BGE and CrossEncoder revisions are recorded in `spikes/retrieval/models.json`.
+The result is `artifacts/phase-0/retrieval/real-benchmark.json`. Quarantined pages and
+picture-channel cases are excluded from the ordinary body-index score. The measured local
+result constrains the current hybrid query: dense retrieval outperformed hybrid on the small
+corpus, and CrossEncoder reranking added about one second per query without closing all misses.
 
 ## Temporal recovery
 
@@ -72,15 +85,38 @@ The first test must create a versioned chunk index, ingest two tenants, run lexi
 docker compose --profile workflow up -d temporal
 ```
 
+```bash
+uv run --extra phase0 python spikes/workflow/run.py
+```
+
+The probe kills a worker after parse completion, starts a replacement worker, and verifies one
+parse attempt, one indexed active version, and successful workflow completion. The Compose
+profile pins Temporal 1.29.3 and uses the image's bundled dynamic configuration.
+
 The first workflow test must terminate a worker between parse and index activities, restart it, and prove the workflow resumes without duplicating the active document version.
 
 ## Object storage
 
 The production contract targets S3-compatible storage. Select the local emulator during the spike instead of adopting the archived MinIO server without review. The test must cover multipart upload, immutable version identity, signed reads, interrupted upload cleanup, and delete verification.
 
+The selected emulator is LocalStack 4.4.0:
+
+```bash
+docker compose --profile storage up -d localstack
+uv run --extra phase0 python spikes/storage/run.py
+```
+
+The result is `artifacts/phase-0/storage/multipart.json`.
+
 ## Telemetry
 
 The trace proof must propagate one trace across API, Temporal workflow, parser activity, index activity, OpenSearch query, and generation stub. It must verify that document bodies and secret values are absent from exported telemetry by default.
+
+```bash
+uv run python spikes/telemetry/run.py
+```
+
+The result is `artifacts/phase-0/telemetry/trace.json`.
 
 ## Retrieval dataset
 

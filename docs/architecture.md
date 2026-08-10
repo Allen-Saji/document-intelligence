@@ -28,3 +28,5 @@ The API, workflow activities, parsing, retrieval, generation, and citation code 
 - object keys use generated identifiers and checksums, never user filenames
 - answer validation rejects unknown citations and cross-tenant evidence
 - production readiness reports missing configuration names without exposing values
+- Phase 0 probes save real retrieval, workflow recovery, S3-compatible storage, and trace redaction results under `artifacts/phase-0/`
+- dense retrieval is the current measured baseline; hybrid fusion and reranking remain constrained until a larger labeled evaluation set supports promotion

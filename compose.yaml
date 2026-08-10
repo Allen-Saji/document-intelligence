@@ -50,9 +50,21 @@ services:
       retries: 18
     restart: unless-stopped
 
+  localstack:
+    profiles: ["storage"]
+    image: localstack/localstack:4.4.0
+    environment:
+      SERVICES: s3
+      DEBUG: "0"
+    ports:
+      - "127.0.0.1:4566:4566"
+    volumes:
+      - document_intelligence_localstack:/var/lib/localstack
+    restart: unless-stopped
+
   temporal:
     profiles: ["workflow"]
-    image: temporalio/auto-setup:1.31.2
+    image: temporalio/auto-setup:1.29.3
     depends_on:
       postgres:
         condition: service_healthy
@@ -62,7 +74,6 @@ services:
       POSTGRES_USER: postgres
       POSTGRES_PWD: ${LOCAL_POSTGRES_ADMIN_PASSWORD:-local-admin-only}
       POSTGRES_SEEDS: postgres
-      DYNAMIC_CONFIG_FILE_PATH: config/dynamicconfig/development-sql.yaml
     ports:
       - "127.0.0.1:7234:7233"
     restart: unless-stopped
@@ -70,3 +81,4 @@ services:
 volumes:
   document_intelligence_postgres:
   document_intelligence_opensearch:
+  document_intelligence_localstack:
