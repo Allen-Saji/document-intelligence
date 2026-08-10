@@ -43,10 +43,13 @@ def build_tenant_scoped_hybrid_query(
                 "organization_id",
                 "workspace_id",
                 "corpus_id",
+                "document_id",
                 "document_version_id",
                 "chunk_id",
                 "page_number",
+                "block_type",
                 "content",
+                "is_searchable",
             ]
         },
         "query": {

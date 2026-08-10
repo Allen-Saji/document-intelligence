@@ -17,10 +17,10 @@ def test_seed_retrieval_dataset_is_valid() -> None:
     dataset = load_retrieval_dataset(Path("spikes/retrieval/cases.json"))
 
     assert dataset.id == "phase-0-retrieval-v1"
-    assert len(dataset.cases) == 8
+    assert len(dataset.cases) == 14
     assert dataset_category_counts(dataset) == {
-        "factual": 3,
-        "follow-up": 1,
+        "factual": 8,
+        "follow-up": 2,
         "identifier": 1,
         "synthesis": 1,
         "unanswerable": 2,

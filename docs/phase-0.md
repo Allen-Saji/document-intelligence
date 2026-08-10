@@ -33,6 +33,16 @@ Picture content has a separate contract:
 - exact identifiers and semantic paraphrases both represented
 - complexity retained only when it improves measured quality
 
+The current OpenSearch smoke proof is saved at
+`artifacts/phase-0/retrieval/benchmark.json`. It indexes 26 fixture records, including 13
+foreign-tenant records, and returns zero foreign hits from all tenant-filtered queries. Across
+12 supported cases, hybrid recall@5 is 1.0 with mean reciprocal rank 0.9375; the transparent
+exact-term reranker keeps recall@5 at 1.0 and raises mean reciprocal rank to 1.0. Mean latency
+is 7.63 ms for hybrid and 7.69 ms for reranked hybrid in this local run. The runner uses
+deterministic hash vectors and fixture records, so these numbers prove query wiring and
+isolation only, not semantic embedding quality. A selected embedding model and a larger
+human-labeled corpus remain required before the retrieval gate can close.
+
 ## Durable workflows
 
 - duplicate submission is idempotent

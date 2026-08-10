@@ -41,6 +41,7 @@ def test_hybrid_query_contains_lexical_and_dense_branches() -> None:
     branches = query["query"]["hybrid"]["queries"]
     assert "match" in branches[0]
     assert "knn" in branches[1]
+    assert "embedding" not in query["_source"]["includes"]
 
 
 def test_hybrid_query_uses_larger_candidate_limit() -> None:

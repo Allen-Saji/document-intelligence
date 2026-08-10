@@ -84,7 +84,17 @@ The trace proof must propagate one trace across API, Temporal workflow, parser a
 
 ## Retrieval dataset
 
-The seed retrieval dataset is `spikes/retrieval/cases.json`. It is a versioned contract
-over document and physical-page evidence, not a release-sized evaluation set. Run its
-validation with the normal test suite. Expand it with human-labeled cases before making
-retrieval quality claims.
+The retrieval dataset is `spikes/retrieval/cases.json`. It is a versioned contract over
+document and physical-page evidence, not a release-sized evaluation set. Run its validation
+with the normal test suite. The OpenSearch smoke runner creates a versioned chunk index,
+indexes allowed and foreign tenant records, runs tenant-filtered hybrid queries, applies the
+transparent exact-term reranker, and writes `artifacts/phase-0/retrieval/benchmark.json`:
+
+```bash
+docker compose --profile search up -d opensearch
+uv run python spikes/retrieval/run.py --index di-phase0-chunks-v1
+```
+
+The runner uses deterministic hash vectors only to exercise the index and query wiring. It is
+not a semantic embedding quality claim. Expand the fixture with further human-labeled cases
+and a selected embedding model before making retrieval quality claims.

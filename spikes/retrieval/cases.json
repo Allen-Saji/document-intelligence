@@ -2,7 +2,7 @@
   "schema_version": 1,
   "id": "phase-0-retrieval-v1",
   "corpus_id": "phase-0-parser-v1",
-  "description": "Seed labeled retrieval cases for the pinned Phase 0 parser corpus. Expand before retrieval release gates.",
+  "description": "Expanded seed labeled retrieval cases for the pinned Phase 0 parser corpus. Expand further before retrieval release gates.",
   "cases": [
     {
       "id": "factual-code-profile",
@@ -27,6 +27,46 @@
       "expected_state": "supported",
       "gold_evidence": [{"document_id": "faa-handbook-sample", "page_number": 1, "block_type": "picture", "anchor": "self-locking nuts"}],
       "exact_terms": ["self-locking", "nuts"]
+    },
+    {
+      "id": "factual-faa-boots-purpose",
+      "question": "Why does the Boots self-locking nut remain tight under vibration?",
+      "category": "factual",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "faa-handbook-sample", "page_number": 1, "block_type": "text", "anchor": "Boots Self-Locking Nut"}],
+      "exact_terms": ["vibration", "locking force"]
+    },
+    {
+      "id": "factual-faa-stainless-action",
+      "question": "What causes the stainless steel self-locking nut to clamp the bolt?",
+      "category": "factual",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "faa-handbook-sample", "page_number": 1, "block_type": "text", "anchor": "Stainless Steel Self-Locking Nut"}],
+      "exact_terms": ["locking shoulder", "threaded insert"]
+    },
+    {
+      "id": "factual-doclaynet-class-count",
+      "question": "How many distinct classes do DocLayNet page annotations provide?",
+      "category": "factual",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "doclaynet-paper", "page_number": 1, "block_type": "text", "anchor": "11 distinct classes"}],
+      "exact_terms": ["11", "distinct classes"]
+    },
+    {
+      "id": "factual-loc-mast-heights",
+      "question": "Which mast heights were used at the equipped shore stations?",
+      "category": "factual",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "loc-wireless-telegraph-scan", "page_number": 9, "block_type": "text", "anchor": "THE MAST"}],
+      "exact_terms": ["130", "180", "feet"]
+    },
+    {
+      "id": "factual-loc-operating-room",
+      "question": "How large should the wireless operating room be?",
+      "category": "factual",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "loc-wireless-telegraph-scan", "page_number": 9, "block_type": "text", "anchor": "THE OPERATING ROOM"}],
+      "exact_terms": ["6 feet square"]
     },
     {
       "id": "synthesis-layout-dataset",
@@ -69,6 +109,16 @@
       "gold_evidence": [{"document_id": "docling-code-formula", "page_number": 2, "block_type": "formula", "anchor": "formula"}],
       "conversation": ["What mathematical expression is included in the fixture?"],
       "standalone_question": "Which page contains the mathematical expression in the code and formula fixture?"
+    },
+    {
+      "id": "follow-up-mast-height",
+      "question": "And what were the two heights?",
+      "category": "follow-up",
+      "expected_state": "supported",
+      "gold_evidence": [{"document_id": "loc-wireless-telegraph-scan", "page_number": 9, "block_type": "text", "anchor": "THE MAST"}],
+      "exact_terms": ["130", "180"],
+      "conversation": ["Which mast heights were used at the equipped shore stations?"],
+      "standalone_question": "Which two mast heights were used at the equipped shore stations?"
     }
   ]
 }
