@@ -11,6 +11,13 @@ Phase 0 closes only after each result is saved under `artifacts/phase-0/` and su
 - resource use and failure behavior measured
 - low-confidence quarantine rule defined
 
+Picture content has a separate contract:
+
+- picture-derived text defaults to `pending` and cannot enter the ordinary body index
+- accepted picture text requires reviewer identity, review time, and a review note
+- accepted content is emitted on the `picture` index channel with page and picture provenance
+- rejected or unreviewed content remains evidence-only until a later reviewed decision
+
 ## Tenant isolation
 
 - database RLS denies cross-tenant reads and writes
