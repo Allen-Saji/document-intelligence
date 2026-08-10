@@ -24,6 +24,16 @@ Run one case while iterating:
 uv run python spikes/parser/run.py --document docling-code-formula
 ```
 
+Run the alternate OCR profile only for pages quarantined by the primary parser:
+
+```bash
+uv run python spikes/parser/run.py --document loc-wireless-telegraph-scan --fallback
+```
+
+The report records the primary quarantine reasons and each fallback page result. Fallback
+renders are saved under the document's `fallback/` artifact directory. A fallback result
+never enters the primary parse or index automatically.
+
 The runner does not mark manual fidelity checks complete. Review the listed page renders
 against the original PDF and record the decision before closing the Phase 0 parser gate.
 After recording `artifacts/phase-0/parser/manual-review.json`, rebuild the aggregate report:

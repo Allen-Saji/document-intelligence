@@ -119,6 +119,7 @@
         "max_empty_pages": 0,
         "min_tables": 0,
         "min_pictures": 1,
+        "diagram_pages": [13],
         "min_labels": {}
       },
       "manual_review": [

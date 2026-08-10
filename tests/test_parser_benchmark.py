@@ -239,6 +239,110 @@ def test_analyze_export_reports_malformed_and_out_of_bounds_geometry() -> None:
     ]
 
 
+def test_analyze_export_quarantines_page_quality_failures() -> None:
+    exported = {
+        "pages": {
+            "1": {"size": {"width": 100, "height": 200}, "page_no": 1},
+            "2": {"size": {"width": 100, "height": 200}, "page_no": 2},
+        },
+        "texts": [
+            {
+                "self_ref": "#/texts/0",
+                "label": "text",
+                "text": "inside",
+                "prov": [{"page_no": 1, "bbox": {"l": 20, "t": 120, "r": 40, "b": 140}}],
+            },
+            {
+                "self_ref": "#/texts/1",
+                "label": "text",
+                "text": "above",
+                "prov": [{"page_no": 1, "bbox": {"l": 20, "t": 30, "r": 40, "b": 40}}],
+            },
+        ],
+        "tables": [],
+        "pictures": [
+            {
+                "self_ref": "#/pictures/0",
+                "label": "picture",
+                "prov": [{"page_no": 1, "bbox": {"l": 10, "t": 100, "r": 50, "b": 160}}],
+            }
+        ],
+        "key_value_items": [],
+        "body": [{"$ref": "#/texts/0"}, {"$ref": "#/texts/1"}],
+    }
+
+    metrics = analyze_docling_export(exported, diagram_pages=[2])
+
+    assert metrics["quarantined_pages"] == [1, 2]
+    assert metrics["quarantine_reasons"] == {
+        "1": ["text-inside-picture", "suspect-reading-order"],
+        "2": ["empty-page", "missing-picture-region"],
+    }
+    assert metrics["pages"]["1"]["picture_text_count"] == 1
+
+
+def test_benchmark_fallback_runs_only_on_quarantined_pages(tmp_path: Path) -> None:
+    runner = runpy.run_path("spikes/parser/run.py")
+    benchmark_document = runner["benchmark_document"]
+    content = b"fixture"
+    source = tmp_path / "fixture.pdf"
+    source.write_bytes(content)
+    document = (
+        load_corpus(Path("spikes/parser/corpus.json"))
+        .documents[0]
+        .model_copy(
+            update={
+                "filename": source.name,
+                "byte_size": len(content),
+                "sha256": sha256_file(source),
+                "expected": ExpectedFeatures(min_page_count=2, min_text_chars=1),
+            }
+        )
+    )
+    exported = {
+        "pages": {
+            "1": {"size": {"width": 100, "height": 200}, "page_no": 1},
+            "2": {"size": {"width": 100, "height": 200}, "page_no": 2},
+        },
+        "texts": [
+            {
+                "self_ref": "#/texts/0",
+                "label": "text",
+                "text": "content",
+                "prov": [{"page_no": 1, "bbox": {"l": 10, "t": 20, "r": 90, "b": 40}}],
+            }
+        ],
+        "tables": [],
+        "pictures": [],
+        "key_value_items": [],
+        "body": [{"$ref": "#/texts/0"}],
+    }
+    calls: list[object] = []
+    fake_doc = SimpleNamespace(
+        pages={},
+        export_to_dict=lambda: exported,
+        export_to_markdown=lambda: "content",
+    )
+    primary_result = SimpleNamespace(document=fake_doc, status="success", errors=[])
+    primary_converter = SimpleNamespace(convert=lambda path: primary_result)
+
+    def fallback_convert(path: Path, page_range: tuple[int, int]) -> object:
+        calls.append(page_range)
+        return primary_result
+
+    fallback_converter = SimpleNamespace(convert=fallback_convert)
+    report = benchmark_document(
+        document,
+        source,
+        tmp_path / "output",
+        primary_converter,
+        fallback_converter,
+    )
+
+    assert calls == [(2, 2)]
+    assert report["fallback"]["attempted_pages"] == [2]
+
+
 def test_feature_evaluation_reports_failed_minimum() -> None:
     metrics = {
         "page_count": 2,
@@ -425,6 +529,7 @@ def _passing_report(document: CorpusDocument) -> dict[str, object]:
             "page_range": document.page_range,
             "profile": document.profile,
             "categories": document.categories,
+            "diagram_pages": document.expected.diagram_pages,
         },
         "conversion": {"status": "success", "errors": []},
         "metrics": {

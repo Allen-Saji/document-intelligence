@@ -5,6 +5,7 @@ import json
 import re
 import urllib.request
 from collections import Counter
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Literal
 
@@ -40,6 +41,16 @@ class ExpectedFeatures(BaseModel):
     min_tables: int = Field(default=0, ge=0)
     min_pictures: int = Field(default=0, ge=0)
     min_labels: dict[str, int] = Field(default_factory=dict)
+    diagram_pages: list[int] = Field(default_factory=list)
+
+    @field_validator("diagram_pages")
+    @classmethod
+    def require_positive_unique_diagram_pages(cls, value: list[int]) -> list[int]:
+        if any(page < 1 for page in value):
+            raise ValueError("diagram pages must be one-based positive integers")
+        if len(value) != len(set(value)):
+            raise ValueError("diagram pages must be unique")
+        return value
 
 
 class ManualReview(BaseModel):
@@ -208,11 +219,20 @@ def fetch_fixture(document: CorpusDocument, data_dir: Path) -> Path:
     return target
 
 
-def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
+def analyze_docling_export(
+    exported: dict[str, Any], diagram_pages: list[int] | tuple[int, ...] = ()
+) -> dict[str, Any]:
     pages = exported.get("pages", {})
     page_sizes = {int(page_number): page.get("size", {}) for page_number, page in pages.items()}
     page_metrics: dict[int, dict[str, Any]] = {
-        page_number: {"item_count": 0, "text_chars": 0, "label_counts": Counter()}
+        page_number: {
+            "item_count": 0,
+            "text_chars": 0,
+            "label_counts": Counter(),
+            "picture_count": 0,
+            "picture_text_count": 0,
+            "reading_order_inversions": 0,
+        }
         for page_number in page_sizes
     }
     labels: Counter[str] = Counter()
@@ -223,6 +243,9 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
     provenance_entry_count = 0
     valid_geometry_entry_count = 0
     invalid_provenance: list[dict[str, Any]] = []
+    items_by_ref: dict[str, dict[str, Any]] = {}
+    picture_boxes_by_page: dict[int, list[dict[str, float]]] = {}
+    item_boxes_by_page: dict[str, list[tuple[int, dict[str, float]]]] = {}
 
     for collection in CONTENT_COLLECTIONS:
         items = exported.get(collection, [])
@@ -230,6 +253,9 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
         for item_index, item in enumerate(items):
             label = str(item.get("label", collection.removesuffix("s")))
             labels[label] += 1
+            self_ref = item.get("self_ref")
+            if isinstance(self_ref, str):
+                items_by_ref[self_ref] = {"collection": collection, "item": item}
             text = item.get("text")
             if isinstance(text, str):
                 text_chars += len(text)
@@ -247,6 +273,15 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
                     valid_geometry = True
                     valid_geometry_entry_count += 1
                     item_pages.add(page_number)
+                    normalized_bbox = _normalized_bbox(bbox)
+                    if normalized_bbox is not None:
+                        item_boxes_by_page.setdefault(str(self_ref), []).append(
+                            (page_number, normalized_bbox)
+                        )
+                        if collection == "pictures":
+                            picture_boxes_by_page.setdefault(page_number, []).append(
+                                normalized_bbox
+                            )
                 else:
                     invalid_provenance.append(
                         {
@@ -262,16 +297,43 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
                 page_metrics[page_number]["item_count"] += 1
                 page_metrics[page_number]["text_chars"] += len(text) if isinstance(text, str) else 0
                 page_metrics[page_number]["label_counts"][label] += 1
+                if collection == "pictures":
+                    page_metrics[page_number]["picture_count"] += 1
+
+    for self_ref, item_data in items_by_ref.items():
+        if item_data["collection"] != "texts":
+            continue
+        for page_number, text_bbox in item_boxes_by_page.get(self_ref, []):
+            if any(
+                _bbox_contains(picture_bbox, text_bbox)
+                for picture_bbox in picture_boxes_by_page.get(page_number, [])
+            ):
+                page_metrics[page_number]["picture_text_count"] += 1
+
+    for page_number, inversion_count in _reading_order_inversions(
+        exported, items_by_ref, item_boxes_by_page, page_sizes
+    ).items():
+        page_metrics[page_number]["reading_order_inversions"] = inversion_count
 
     geometry_coverage = (
         valid_geometry_entry_count / provenance_entry_count if provenance_entry_count else 0.0
     )
-    body_children = exported.get("body", {}).get("children", [])
+    body = exported.get("body", [])
+    body_children = body.get("children", []) if isinstance(body, dict) else body
+    if not isinstance(body_children, list):
+        body_children = []
+    diagram_page_set = set(diagram_pages)
     serializable_page_metrics = {
         str(page_number): {
             "item_count": metrics["item_count"],
             "text_chars": metrics["text_chars"],
             "label_counts": dict(sorted(metrics["label_counts"].items())),
+            "picture_count": metrics["picture_count"],
+            "picture_text_count": metrics["picture_text_count"],
+            "reading_order_inversions": metrics["reading_order_inversions"],
+            "quality_reasons": _page_quality_reasons(
+                page_number, metrics, page_number in diagram_page_set
+            ),
         }
         for page_number, metrics in sorted(page_metrics.items())
     }
@@ -280,6 +342,11 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
         for page_number, metrics in sorted(page_metrics.items())
         if metrics["item_count"] == 0
     ]
+    quarantine_reasons = {
+        page_number: page["quality_reasons"]
+        for page_number, page in serializable_page_metrics.items()
+        if page["quality_reasons"]
+    }
 
     return {
         "page_count": len(pages),
@@ -289,6 +356,8 @@ def analyze_docling_export(exported: dict[str, Any]) -> dict[str, Any]:
         "body_child_count": len(body_children),
         "pages": serializable_page_metrics,
         "empty_pages": empty_pages,
+        "quarantined_pages": [int(page) for page in sorted(quarantine_reasons, key=int)],
+        "quarantine_reasons": quarantine_reasons,
         "items_with_provenance": items_with_provenance,
         "items_with_valid_geometry": items_with_valid_geometry,
         "provenance_entries": provenance_entry_count,
@@ -354,3 +423,94 @@ def _invalid_provenance_reason(
     if not (0 <= min(top, bottom) < max(top, bottom) <= height):
         return "vertical-bounds"
     return None
+
+
+def _page_quality_reasons(
+    page_number: int, metrics: dict[str, Any], is_declared_diagram_page: bool
+) -> list[str]:
+    reasons: list[str] = []
+    if metrics["item_count"] == 0:
+        reasons.append("empty-page")
+    if is_declared_diagram_page and metrics["picture_count"] == 0:
+        reasons.append("missing-picture-region")
+    if metrics["picture_text_count"] > 0:
+        reasons.append("text-inside-picture")
+    if metrics["reading_order_inversions"] > 0:
+        reasons.append("suspect-reading-order")
+    return reasons
+
+
+def _normalized_bbox(bbox: Any) -> dict[str, float] | None:
+    if not isinstance(bbox, dict):
+        return None
+    try:
+        left = float(bbox["l"])
+        right = float(bbox["r"])
+        top = float(bbox["t"])
+        bottom = float(bbox["b"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    if bbox.get("coord_origin") == "BOTTOMLEFT":
+        visual_top = -max(top, bottom)
+        visual_bottom = -min(top, bottom)
+    else:
+        visual_top = min(top, bottom)
+        visual_bottom = max(top, bottom)
+    return {
+        "left": min(left, right),
+        "right": max(left, right),
+        "top": visual_top,
+        "bottom": visual_bottom,
+    }
+
+
+def _bbox_contains(outer: dict[str, float], inner: dict[str, float]) -> bool:
+    center_x = (inner["left"] + inner["right"]) / 2
+    center_y = (inner["top"] + inner["bottom"]) / 2
+    outer_top = min(outer["top"], outer["bottom"])
+    outer_bottom = max(outer["top"], outer["bottom"])
+    return outer["left"] <= center_x <= outer["right"] and outer_top <= center_y <= outer_bottom
+
+
+def _reading_order_inversions(
+    exported: dict[str, Any],
+    items_by_ref: dict[str, dict[str, Any]],
+    item_boxes_by_page: dict[str, list[tuple[int, dict[str, float]]]],
+    page_sizes: dict[int, dict[str, Any]],
+) -> dict[int, int]:
+    body = exported.get("body", [])
+    if isinstance(body, dict):
+        body = body.get("children", [])
+    if not isinstance(body, list):
+        return {}
+
+    sequence_by_page: dict[int, list[dict[str, Any]]] = {}
+    for order, child in enumerate(body):
+        reference = child.get("$ref") if isinstance(child, dict) else None
+        if not isinstance(reference, str) or reference not in items_by_ref:
+            continue
+        for page_number, bbox in item_boxes_by_page.get(reference, []):
+            sequence_by_page.setdefault(page_number, []).append({"order": order, "bbox": bbox})
+
+    inversions: dict[int, int] = {}
+    for page_number, sequence in sequence_by_page.items():
+        page_size = page_sizes.get(page_number, {})
+        try:
+            page_width = float(page_size["width"])
+            page_height = float(page_size["height"])
+        except (KeyError, TypeError, ValueError):
+            continue
+        count = 0
+        for previous, current in pairwise(sequence):
+            previous_bbox = previous["bbox"]
+            current_bbox = current["bbox"]
+            previous_center = (previous_bbox["left"] + previous_bbox["right"]) / 2
+            current_center = (current_bbox["left"] + current_bbox["right"]) / 2
+            horizontal_distance = abs(current_center - previous_center)
+            same_column = horizontal_distance <= page_width * 0.2
+            moved_up = current_bbox["top"] < previous_bbox["top"] - page_height * 0.05
+            if same_column and moved_up:
+                count += 1
+        if count:
+            inversions[page_number] = count
+    return inversions

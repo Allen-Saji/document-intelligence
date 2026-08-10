@@ -69,6 +69,7 @@ def benchmark_document(
     pdf: Path,
     output_root: Path,
     converter: Any | None = None,
+    fallback_converter: Any | None = None,
 ) -> dict[str, Any]:
     verify_fixture(document, pdf)
     active_converter = converter or build_converter(document.profile)
@@ -80,13 +81,20 @@ def benchmark_document(
         result = active_converter.convert(pdf, page_range=page_range)
     elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
     exported = result.document.export_to_dict()
-    metrics = analyze_docling_export(exported)
+    metrics = analyze_docling_export(exported, diagram_pages=document.expected.diagram_pages)
     checks = evaluate_features(metrics, document.expected)
     conversion_status = _enum_value(result.status)
     conversion_errors = [_model_dump(error) for error in result.errors]
     conversion_succeeded = conversion_status == "success" and not conversion_errors
-
     document_output = output_root / document.id
+    fallback = _benchmark_quarantined_pages(
+        document=document,
+        pdf=pdf,
+        metrics=metrics,
+        converter=fallback_converter,
+        output_root=document_output / "fallback",
+    )
+
     pages_output = document_output / "pages"
     pages_output.mkdir(parents=True, exist_ok=True)
     _write_json(document_output / "document.json", exported)
@@ -111,6 +119,7 @@ def benchmark_document(
             "page_range": document.page_range,
             "profile": document.profile,
             "categories": document.categories,
+            "diagram_pages": document.expected.diagram_pages,
         },
         "runtime": {
             "elapsed_ms": elapsed_ms,
@@ -127,6 +136,7 @@ def benchmark_document(
         },
         "metrics": metrics,
         "automated_checks": checks,
+        "fallback": fallback,
         "manual_review": [review.model_dump(mode="json") for review in document.manual_review],
     }
     _write_json(document_output / "report.json", report)
@@ -139,11 +149,13 @@ def run_corpus(
     data_dir: Path,
     output_dir: Path,
     fetch: bool,
+    fallback: bool = False,
 ) -> dict[str, Any]:
     selected = _select_documents(corpus, selected_ids)
     reports: list[dict[str, Any]] = []
     failures: list[dict[str, str]] = []
     converters: dict[str, Any] = {}
+    fallback_converters: dict[str, Any] = {}
 
     for document in selected:
         try:
@@ -152,7 +164,22 @@ def run_corpus(
             if converter is None:
                 converter = build_converter(document.profile)
                 converters[document.profile] = converter
-            reports.append(benchmark_document(document, pdf, output_dir, converter=converter))
+            fallback_converter = None
+            if fallback:
+                fallback_profile = _fallback_profile(document.profile)
+                fallback_converter = fallback_converters.get(fallback_profile)
+                if fallback_converter is None:
+                    fallback_converter = build_converter(fallback_profile)
+                    fallback_converters[fallback_profile] = fallback_converter
+            reports.append(
+                benchmark_document(
+                    document,
+                    pdf,
+                    output_dir,
+                    converter=converter,
+                    fallback_converter=fallback_converter,
+                )
+            )
         except Exception as exc:
             failure = {"document_id": document.id, "error": f"{type(exc).__name__}: {exc}"}
             failures.append(failure)
@@ -170,6 +197,10 @@ def run_corpus(
             report["corpus_id"] for report in reports if report["status"] == "automated-fail"
         ],
         "execution_failures": failures,
+        "quarantined_pages": {
+            report["corpus_id"]: report["metrics"].get("quarantined_pages", [])
+            for report in reports
+        },
         "manual_review_status": "pending" if reports else "not-started",
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -204,6 +235,11 @@ def main() -> None:
         action="store_true",
         help="Rebuild the corpus summary from existing per-document reports.",
     )
+    parser.add_argument(
+        "--fallback",
+        action="store_true",
+        help="Run the alternate OCR profile only on pages quarantined by the primary parser.",
+    )
     args = parser.parse_args()
 
     corpus = load_corpus(args.manifest.resolve())
@@ -225,6 +261,7 @@ def main() -> None:
         data_dir=args.data_dir.resolve(),
         output_dir=args.output_dir.resolve(),
         fetch=args.fetch,
+        fallback=args.fallback,
     )
     print(json.dumps(summary, indent=2, sort_keys=True))
     if summary["automated_failures"] or summary["execution_failures"]:
@@ -280,6 +317,10 @@ def summarize_existing(corpus: ParserCorpus, output_dir: Path) -> dict[str, Any]
             report["corpus_id"] for report in reports if report["status"] == "automated-fail"
         ],
         "execution_failures": missing_reports,
+        "quarantined_pages": {
+            report["corpus_id"]: report["metrics"].get("quarantined_pages", [])
+            for report in reports
+        },
         "manual_review_status": manual_review_status,
     }
     output_dir.mkdir(parents=True, exist_ok=True)
@@ -296,6 +337,7 @@ def _validate_existing_report(report: dict[str, Any], document: CorpusDocument) 
         "page_range": list(document.page_range) if document.page_range is not None else None,
         "profile": document.profile,
         "categories": document.categories,
+        "diagram_pages": document.expected.diagram_pages,
     }
     mismatches = [
         field for field, expected in expected_input.items() if report_input.get(field) != expected
@@ -322,6 +364,7 @@ def _configure_model_cache(cache: Path) -> None:
 
 
 def _save_page_images(pages: dict[int, Any], output_dir: Path) -> list[str]:
+    output_dir.mkdir(parents=True, exist_ok=True)
     rendered: list[str] = []
     for page_number, page in sorted(pages.items()):
         image = getattr(page, "image", None)
@@ -332,6 +375,58 @@ def _save_page_images(pages: dict[int, Any], output_dir: Path) -> list[str]:
         pil_image.save(output_dir / filename, format="PNG")
         rendered.append(filename)
     return rendered
+
+
+def _benchmark_quarantined_pages(
+    document: CorpusDocument,
+    pdf: Path,
+    metrics: dict[str, Any],
+    converter: Any | None,
+    output_root: Path,
+) -> dict[str, Any] | None:
+    quarantined_pages = metrics.get("quarantined_pages", [])
+    if converter is None or not quarantined_pages:
+        return None
+
+    profile = _fallback_profile(document.profile)
+    page_results: dict[str, Any] = {}
+    for page_number in quarantined_pages:
+        try:
+            result = converter.convert(pdf, page_range=(page_number, page_number))
+            exported = result.document.export_to_dict()
+            fallback_metrics = analyze_docling_export(
+                exported, diagram_pages=document.expected.diagram_pages
+            )
+            conversion_status = _enum_value(result.status)
+            errors = [_model_dump(error) for error in result.errors]
+            page_output = output_root / f"page-{page_number:04d}"
+            pages_output = page_output / "pages"
+            _write_json(page_output / "document.json", exported)
+            (page_output / "document.md").write_text(
+                f"{result.document.export_to_markdown()}\n", encoding="utf-8"
+            )
+            page_results[str(page_number)] = {
+                "conversion": {"status": conversion_status, "errors": errors},
+                "metrics": fallback_metrics,
+                "rendered_pages": _save_page_images(result.document.pages, pages_output),
+                "geometry_overlays": _save_geometry_overlays(exported, pages_output),
+                "remaining_quarantine_reasons": fallback_metrics["quarantine_reasons"].get(
+                    str(page_number), []
+                ),
+            }
+        except Exception as exc:
+            page_results[str(page_number)] = {
+                "conversion": {
+                    "status": "execution-failure",
+                    "errors": [{"type": type(exc).__name__, "message": str(exc)}],
+                }
+            }
+
+    return {
+        "profile": profile,
+        "attempted_pages": [int(page) for page in quarantined_pages],
+        "pages": page_results,
+    }
 
 
 def _save_geometry_overlays(exported: dict[str, Any], output_dir: Path) -> list[str]:
@@ -425,6 +520,10 @@ def _model_dump(value: Any) -> Any:
 def _write_json(path: Path, payload: Any) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"{json.dumps(payload, indent=2, sort_keys=True)}\n", encoding="utf-8")
+
+
+def _fallback_profile(primary_profile: str) -> str:
+    return "full-page-ocr" if primary_profile != "full-page-ocr" else "standard"
 
 
 if __name__ == "__main__":
