@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     s3_endpoint_url: SecretStr | None = None
     s3_bucket: str | None = None
     oidc_issuer: SecretStr | None = None
+    api_key_pepper: SecretStr | None = None
     generation_provider: str | None = None
     generation_model: str | None = None
     otel_exporter_otlp_endpoint: SecretStr | None = None
@@ -40,6 +41,7 @@ class Settings(BaseSettings):
             "APP_TEMPORAL_TARGET": self.temporal_target,
             "APP_S3_BUCKET": self.s3_bucket,
             "APP_OIDC_ISSUER": self.oidc_issuer,
+            "APP_API_KEY_PEPPER": self.api_key_pepper,
             "APP_GENERATION_PROVIDER": self.generation_provider,
             "APP_GENERATION_MODEL": self.generation_model,
             "APP_OTEL_EXPORTER_OTLP_ENDPOINT": self.otel_exporter_otlp_endpoint,

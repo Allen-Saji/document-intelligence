@@ -4,6 +4,22 @@ from uuid import UUID
 SHA256_PATTERN = re.compile(r"^[a-f0-9]{64}$")
 
 
+def pending_upload_key(*, organization_id: UUID, workspace_id: UUID, upload_id: UUID) -> str:
+    """Create a non-public temporary multipart key without a user filename."""
+
+    return "/".join(
+        (
+            "organizations",
+            str(organization_id),
+            "workspaces",
+            str(workspace_id),
+            "uploads",
+            str(upload_id),
+            "multipart.pdf",
+        )
+    )
+
+
 def original_pdf_key(
     *,
     organization_id: UUID,

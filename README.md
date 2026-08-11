@@ -2,7 +2,8 @@
 
 Document Intelligence is a production-focused application for investigating technical PDFs. It is designed to answer questions with claim-level citations that resolve to an immutable document version, physical PDF page, source passage, and page region.
 
-Phase 0 architecture validation is complete. The repository is not deployed and does not make production-readiness claims.
+Phase 0 architecture validation is complete. Phase 1 platform foundation is in progress. The
+repository is not deployed and does not make production-readiness claims.
 
 ## Product contract
 
@@ -34,6 +35,9 @@ The repository already contains executable application contracts for:
 - generated tenant-scoped object keys
 - evidence and citation validation
 - liveness and readiness endpoints
+- verified-identity, workspace-role, and scoped hashed API-key contracts
+- transaction-local PostgreSQL tenant context for non-bypassing application connections
+- multipart upload reservation, server-verified promotion, and immutable object-key contracts
 
 It also contains a pinned four-document parser corpus, a repeatable Docling benchmark, and saved
 Phase 0 probes for real retrieval, Temporal recovery, S3-compatible storage, and tracing.
@@ -57,6 +61,22 @@ uv sync --group dev
 uv run ruff check .
 uv run mypy src
 uv run pytest
+```
+
+Run the Phase 1 PostgreSQL migration after the local database is available:
+
+```bash
+APP_DATABASE_URL="$MIGRATION_DATABASE_URL" uv run alembic upgrade head
+```
+
+`MIGRATION_DATABASE_URL` must use a separate migration identity that can change schema. The
+runtime `document_intelligence_app` role remains non-owner and cannot bypass RLS.
+
+The migration is followed by a live adversarial RLS check (development database only):
+
+```bash
+docker compose exec -T postgres psql -U postgres -d document_intelligence \
+  < spikes/rls/verify_phase1.sql
 ```
 
 Run the API:

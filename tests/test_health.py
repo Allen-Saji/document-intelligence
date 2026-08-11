@@ -41,6 +41,7 @@ async def test_production_readiness_succeeds_with_complete_configuration() -> No
         temporal_target=SecretStr("temporal.example:7233"),
         s3_bucket="documents",
         oidc_issuer=SecretStr("https://identity.example"),
+        api_key_pepper=SecretStr("pepper"),
         generation_provider="provider",
         generation_model="model",
         otel_exporter_otlp_endpoint=SecretStr("https://otel.example"),
