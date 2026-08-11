@@ -19,6 +19,8 @@ class PublicationState(StrEnum):
 class PublicationRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    organization_id: UUID
+    workspace_id: UUID
     document_version_id: UUID
     idempotency_key: str = Field(pattern=r"^[a-f0-9]{64}$")
     state: PublicationState
@@ -32,7 +34,9 @@ class IndexProjection(Protocol):
 
 
 class PublicationLedger(Protocol):
-    async def get(self, idempotency_key: str) -> PublicationRecord | None: ...
+    async def get(
+        self, idempotency_key: str, *, organization_id: UUID, workspace_id: UUID
+    ) -> PublicationRecord | None: ...
 
     async def save(self, record: PublicationRecord) -> None: ...
 
@@ -45,14 +49,20 @@ class IdempotentPublisher:
         self._ledger = ledger
 
     async def publish(self, records: Sequence[ChunkIndexRecord], idempotency_key: str) -> None:
-        existing = await self._ledger.get(idempotency_key)
-        if existing is not None and existing.state == PublicationState.ACTIVE:
-            return
         if not records:
             raise ValueError("cannot publish an empty document projection")
+        existing = await self._ledger.get(
+            idempotency_key,
+            organization_id=records[0].organization_id,
+            workspace_id=records[0].workspace_id,
+        )
+        if existing is not None and existing.state == PublicationState.ACTIVE:
+            return
         await self._projection.upsert(tuple(records))
         await self._ledger.save(
             PublicationRecord(
+                organization_id=records[0].organization_id,
+                workspace_id=records[0].workspace_id,
                 document_version_id=records[0].document_version_id,
                 idempotency_key=idempotency_key,
                 state=PublicationState.ACTIVE,
@@ -69,7 +79,11 @@ class IdempotentPublisher:
     async def _remove(
         self, record: PublicationRecord, target: PublicationState
     ) -> PublicationRecord:
-        current = await self._ledger.get(record.idempotency_key)
+        current = await self._ledger.get(
+            record.idempotency_key,
+            organization_id=record.organization_id,
+            workspace_id=record.workspace_id,
+        )
         if current is None:
             raise ValueError("cannot remove a publication that is not recorded")
         if current.state == target:

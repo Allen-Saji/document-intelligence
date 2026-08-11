@@ -26,7 +26,9 @@ class Ledger:
     def __init__(self) -> None:
         self.records: dict[str, PublicationRecord] = {}
 
-    async def get(self, key: str) -> PublicationRecord | None:
+    async def get(
+        self, key: str, *, organization_id: UUID, workspace_id: UUID
+    ) -> PublicationRecord | None:
         return self.records.get(key)
 
     async def save(self, record: PublicationRecord) -> None:

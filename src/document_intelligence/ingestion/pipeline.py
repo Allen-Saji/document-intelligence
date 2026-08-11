@@ -11,6 +11,7 @@ from document_intelligence.ingestion.contracts import (
     IngestionDocument,
     IngestionStage,
     ProcessingOutcome,
+    SourceDocument,
 )
 from document_intelligence.provenance import PageRegion
 from document_intelligence.retrieval.index import ChunkIndexRecord
@@ -75,6 +76,15 @@ class IngestionPipeline:
     async def run(self, request: IngestionRequest) -> ProcessingOutcome:
         try:
             await self._scanner.scan(request.source_object_key, request.source_sha256)
+            source = SourceDocument(
+                document_version_id=request.document_version_id,
+                object_key=request.source_object_key,
+                sha256=request.source_sha256,
+                byte_size=1,
+            )
+            remember = getattr(self._parser, "remember", None)
+            if callable(remember):
+                remember(source)
             document = await self._parser.parse(request.source_object_key)
             if (
                 document.source.object_key != request.source_object_key
