@@ -37,6 +37,8 @@ have been deployed and audited.
 
 The backend is a modular Python service with explicit provider boundaries.
 
+![Document Intelligence architecture](docs/assets/document-intelligence-architecture.png)
+
 | Area | Current implementation |
 | --- | --- |
 | API | FastAPI with health, upload, signed-read, and answer-stream routes |
@@ -250,4 +252,3 @@ The security checker is a local proof gate, not a professional security audit.
 - The parser and retrieval evaluation corpus is intentionally small.
 - Scanned and picture-dense pages require conservative quarantine and review before indexing.
 - No license file has been added yet.
-
