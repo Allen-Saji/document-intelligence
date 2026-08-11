@@ -15,6 +15,7 @@ from document_intelligence.ingestion.pipeline import (
     IngestionRequest,
     chunk_document,
 )
+from document_intelligence.provenance import PageRegion
 
 
 class Scanner:
@@ -75,7 +76,11 @@ async def test_pipeline_publishes_only_searchable_chunks_with_a_stable_key() -> 
     document = IngestionDocument(
         source=source(),
         pages=(
-            PageExtraction(page_number=1, text="Trusted text"),
+            PageExtraction(
+                page_number=1,
+                text="Trusted text",
+                source_region=PageRegion(left=1.0, top=2.0, right=30.0, bottom=40.0),
+            ),
             PageExtraction(page_number=2, text="", quality_reasons=("empty-page",)),
         ),
     )
@@ -95,6 +100,9 @@ async def test_pipeline_publishes_only_searchable_chunks_with_a_stable_key() -> 
     assert outcome.quarantined_page_count == 1
     assert scanner.calls == [("immutable/doc.pdf", "a" * 64)]
     assert len(publisher.records) == 1
+    assert publisher.records[0].source_region == PageRegion(
+        left=1.0, top=2.0, right=30.0, bottom=40.0
+    )
     assert len(publisher.idempotency_keys) == 1
 
 

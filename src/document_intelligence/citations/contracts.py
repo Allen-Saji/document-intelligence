@@ -3,6 +3,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from document_intelligence.provenance import PageRegion
+
 
 class EvidenceState(StrEnum):
     SUPPORTED = "supported"
@@ -23,6 +25,7 @@ class EvidenceItem(BaseModel):
     chunk_id: UUID
     page_number: int = Field(ge=1)
     passage: str = Field(min_length=1)
+    source_region: PageRegion | None = None
 
 
 class ClaimDraft(BaseModel):
@@ -89,22 +92,12 @@ def validate_and_resolve_answer(
 ) -> ValidatedAnswer:
     """Resolve only evidence supplied to the model and authorized for the active tenant."""
 
-    evidence_by_id = {item.evidence_id: item for item in supplied_evidence}
-    if len(evidence_by_id) != len(supplied_evidence):
-        raise ValueError("supplied evidence IDs must be unique")
-
-    allowed_corpora = set(allowed_corpus_ids)
-    unauthorized = [
-        item.evidence_id
-        for item in supplied_evidence
-        if (
-            item.organization_id != organization_id
-            or item.workspace_id != workspace_id
-            or item.corpus_id not in allowed_corpora
-        )
-    ]
-    if unauthorized:
-        raise ValueError("supplied evidence contains items outside the active tenant")
+    evidence_by_id = validate_supplied_evidence(
+        supplied_evidence,
+        organization_id=organization_id,
+        workspace_id=workspace_id,
+        allowed_corpus_ids=allowed_corpus_ids,
+    )
 
     resolved_claims: list[ResolvedClaim] = []
     for claim in draft.claims:
@@ -125,3 +118,31 @@ def validate_and_resolve_answer(
         claims=tuple(resolved_claims),
         missing_information=draft.missing_information,
     )
+
+
+def validate_supplied_evidence(
+    supplied_evidence: tuple[EvidenceItem, ...],
+    *,
+    organization_id: UUID,
+    workspace_id: UUID,
+    allowed_corpus_ids: tuple[UUID, ...],
+) -> dict[str, EvidenceItem]:
+    """Reject duplicate or unauthorized evidence before it reaches a provider or a client."""
+
+    evidence_by_id = {item.evidence_id: item for item in supplied_evidence}
+    if len(evidence_by_id) != len(supplied_evidence):
+        raise ValueError("supplied evidence IDs must be unique")
+
+    allowed_corpora = set(allowed_corpus_ids)
+    unauthorized = [
+        item.evidence_id
+        for item in supplied_evidence
+        if (
+            item.organization_id != organization_id
+            or item.workspace_id != workspace_id
+            or item.corpus_id not in allowed_corpora
+        )
+    ]
+    if unauthorized:
+        raise ValueError("supplied evidence contains items outside the active tenant")
+    return evidence_by_id

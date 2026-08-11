@@ -9,6 +9,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from document_intelligence.core.tenancy import TenantContext
 from document_intelligence.evaluation.retrieval import EvidenceLocation
+from document_intelligence.provenance import PageRegion
 
 
 class SearchHitRecord(BaseModel):
@@ -23,6 +24,7 @@ class SearchHitRecord(BaseModel):
     page_number: int = Field(ge=1)
     block_type: Literal["text", "table", "code", "formula", "picture"] = "text"
     content: str = Field(min_length=1)
+    source_region: PageRegion | None = None
     is_searchable: bool = True
 
 

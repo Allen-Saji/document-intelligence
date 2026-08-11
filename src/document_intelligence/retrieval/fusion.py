@@ -27,9 +27,9 @@ def reciprocal_rank_fusion(
             scores[chunk_id] = scores.get(chunk_id, 0.0) + 1.0 / (rank_constant + rank)
     return [
         fused[chunk_id].model_copy(update={"score": score})
-        for chunk_id, score in sorted(
-            scores.items(), key=lambda item: (-item[1], str(item[0]))
-        )[:limit]
+        for chunk_id, score in sorted(scores.items(), key=lambda item: (-item[1], str(item[0])))[
+            :limit
+        ]
     ]
 
 

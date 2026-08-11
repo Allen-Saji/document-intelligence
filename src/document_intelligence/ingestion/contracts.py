@@ -5,6 +5,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from document_intelligence.provenance import PageRegion
+
 
 class IngestionStage(StrEnum):
     SCANNED = "scanned"
@@ -39,6 +41,7 @@ class PageExtraction(BaseModel):
 
     page_number: int = Field(ge=1)
     text: str = ""
+    source_region: PageRegion | None = None
     quality_reasons: tuple[str, ...] = ()
 
     @property

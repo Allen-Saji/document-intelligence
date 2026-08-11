@@ -12,6 +12,7 @@ from document_intelligence.ingestion.contracts import (
     IngestionStage,
     ProcessingOutcome,
 )
+from document_intelligence.provenance import PageRegion
 from document_intelligence.retrieval.index import ChunkIndexRecord
 
 CHUNK_NAMESPACE = UUID("839ba940-58c8-4ce3-81a6-c94f1be4ffcd")
@@ -36,6 +37,7 @@ class TextChunk(BaseModel):
     id: UUID
     page_number: int = Field(ge=1)
     content: str = Field(min_length=1)
+    source_region: PageRegion | None = None
 
 
 class MalwareScanner(Protocol):
@@ -103,6 +105,7 @@ class IngestionPipeline:
                     chunk_id=chunk.id,
                     page_number=chunk.page_number,
                     content=chunk.content,
+                    source_region=chunk.source_region,
                     embedding=vector,
                 )
                 for chunk, vector in zip(chunks, vectors, strict=True)
@@ -139,7 +142,14 @@ def chunk_document(document: IngestionDocument, max_chars: int = 900) -> tuple[T
                     f"{document.source.document_version_id}:{page.page_number}:{ordinal}:{content}"
                 )
                 chunk_id = uuid5(CHUNK_NAMESPACE, identity)
-                chunks.append(TextChunk(id=chunk_id, page_number=page.page_number, content=content))
+                chunks.append(
+                    TextChunk(
+                        id=chunk_id,
+                        page_number=page.page_number,
+                        content=content,
+                        source_region=page.source_region,
+                    )
+                )
     return tuple(chunks)
 
 

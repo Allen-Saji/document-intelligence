@@ -25,9 +25,7 @@ class OpenSearchCandidateRetriever:
         self._client = client
         self._index_name = index_name
 
-    async def lexical(
-        self, query: HybridQueryInput, tenant: TenantContext
-    ) -> Sequence[SearchHit]:
+    async def lexical(self, query: HybridQueryInput, tenant: TenantContext) -> Sequence[SearchHit]:
         response = await self._client.search(
             index=self._index_name,
             body=build_tenant_scoped_lexical_query(query, tenant),

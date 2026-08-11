@@ -2,6 +2,7 @@ from uuid import UUID
 
 from document_intelligence.ingestion.contracts import SourceDocument
 from document_intelligence.ingestion.parse import document_from_docling_export
+from document_intelligence.provenance import PageRegion
 
 
 def test_docling_export_admission_quarantines_empty_and_picture_contained_text_pages() -> None:
@@ -32,5 +33,8 @@ def test_docling_export_admission_quarantines_empty_and_picture_contained_text_p
     document = document_from_docling_export(source, exported)
 
     assert [page.page_number for page in document.searchable_pages] == [1]
+    assert document.searchable_pages[0].source_region == PageRegion(
+        left=1.0, top=1.0, right=20.0, bottom=10.0
+    )
     assert document.quarantined_pages[0].page_number == 2
     assert "empty-page" in document.quarantined_pages[0].quality_reasons

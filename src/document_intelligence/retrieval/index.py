@@ -6,6 +6,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from document_intelligence.provenance import PageRegion
+
 
 class ChunkIndexRecord(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
@@ -19,6 +21,7 @@ class ChunkIndexRecord(BaseModel):
     page_number: int = Field(ge=1)
     block_type: Literal["text", "table", "code", "formula", "picture"] = "text"
     content: str = Field(min_length=1)
+    source_region: PageRegion | None = None
     embedding: tuple[float, ...] = Field(min_length=1)
     is_searchable: bool = True
 
@@ -45,6 +48,14 @@ def build_chunk_index_definition(embedding_dimensions: int) -> dict[str, object]
                 "page_number": {"type": "integer"},
                 "block_type": {"type": "keyword"},
                 "content": {"type": "text"},
+                "source_region": {
+                    "properties": {
+                        "left": {"type": "float"},
+                        "top": {"type": "float"},
+                        "right": {"type": "float"},
+                        "bottom": {"type": "float"},
+                    }
+                },
                 "embedding": {
                     "type": "knn_vector",
                     "dimension": embedding_dimensions,

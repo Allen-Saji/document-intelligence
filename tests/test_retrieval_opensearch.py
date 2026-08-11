@@ -6,6 +6,7 @@ from uuid import UUID
 import pytest
 
 from document_intelligence.core.tenancy import TenantContext
+from document_intelligence.provenance import PageRegion
 from document_intelligence.retrieval.opensearch import OpenSearchCandidateRetriever
 from document_intelligence.retrieval.query import HybridQueryInput
 
@@ -48,6 +49,12 @@ def response() -> Mapping[str, object]:
                         "chunk_id": "00000000-0000-4000-8000-000000000006",
                         "page_number": 1,
                         "content": "trusted evidence",
+                        "source_region": {
+                            "left": 1.0,
+                            "top": 2.0,
+                            "right": 30.0,
+                            "bottom": 40.0,
+                        },
                     },
                 }
             ]
@@ -65,6 +72,7 @@ async def test_adapter_builds_tenant_filtered_queries_for_each_candidate_branch(
     dense = await retriever.dense(query, tenant())
 
     assert [item.record.content for item in lexical] == ["trusted evidence"]
+    assert lexical[0].record.source_region == PageRegion(left=1.0, top=2.0, right=30.0, bottom=40.0)
     assert [item.record.content for item in dense] == ["trusted evidence"]
     lexical_filters = client.calls[0][1]["query"]["bool"]["filter"]
     dense_filter = client.calls[1][1]["query"]["knn"]["embedding"]["filter"]

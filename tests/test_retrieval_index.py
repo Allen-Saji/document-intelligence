@@ -3,6 +3,7 @@ from uuid import UUID
 
 import pytest
 
+from document_intelligence.provenance import PageRegion
 from document_intelligence.retrieval.index import (
     ChunkIndexRecord,
     build_bulk_payload,
@@ -24,6 +25,7 @@ def record(*, chunk_id: str, embedding: tuple[float, ...] = (0.1, 0.2)) -> Chunk
         chunk_id=UUID(chunk_id),
         page_number=1,
         content="Fixture content",
+        source_region=PageRegion(left=1.0, top=2.0, right=30.0, bottom=40.0),
         embedding=embedding,
     )
 
@@ -43,6 +45,12 @@ def test_chunk_index_definition_contains_vector_and_authorization_fields() -> No
     }
     assert properties["organization_id"] == {"type": "keyword"}
     assert properties["is_searchable"] == {"type": "boolean"}
+    assert properties["source_region"]["properties"] == {
+        "left": {"type": "float"},
+        "top": {"type": "float"},
+        "right": {"type": "float"},
+        "bottom": {"type": "float"},
+    }
 
 
 def test_bulk_payload_is_newline_delimited_and_pins_index_name() -> None:
@@ -60,6 +68,12 @@ def test_bulk_payload_is_newline_delimited_and_pins_index_name() -> None:
         }
     }
     assert json.loads(lines[1])["content"] == "Fixture content"
+    assert json.loads(lines[1])["source_region"] == {
+        "left": 1.0,
+        "top": 2.0,
+        "right": 30.0,
+        "bottom": 40.0,
+    }
 
 
 def test_bulk_payload_rejects_mixed_embedding_dimensions() -> None:

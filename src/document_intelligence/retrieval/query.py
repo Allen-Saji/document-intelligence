@@ -44,6 +44,7 @@ def _source_fields() -> dict[str, list[str]]:
             "page_number",
             "block_type",
             "content",
+            "source_region",
             "is_searchable",
         ]
     }

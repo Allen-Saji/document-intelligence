@@ -101,9 +101,7 @@ def request(**updates: object) -> RetrievalRequest:
 
 
 def test_prepare_query_uses_standalone_question_without_losing_exact_identifiers() -> None:
-    prepared = prepare_query(
-        request(standalone_question="Does the protocol define finality?")
-    )
+    prepared = prepare_query(request(standalone_question="Does the protocol define finality?"))
 
     assert prepared.search_question == "Does the protocol define finality?"
     assert prepared.exact_terms == ("SVM-1", "FINALITY")
