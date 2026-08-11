@@ -23,6 +23,7 @@ class UploadState(StrEnum):
 class UploadIntent(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
+    corpus_id: UUID
     display_name: str = Field(min_length=1, max_length=500)
     original_filename: str = Field(min_length=5, max_length=255)
     content_type: str = "application/pdf"
@@ -52,6 +53,7 @@ class UploadReservation(BaseModel):
     organization_id: UUID
     workspace_id: UUID
     actor_id: UUID
+    corpus_id: UUID
     document_id: UUID
     document_version_id: UUID
     display_name: str
@@ -109,6 +111,7 @@ def reserve_upload(
             workspace_id=workspace_id,
             upload_id=reservation_id,
         ),
+        corpus_id=intent.corpus_id,
         created_at=created_at,
         expires_at=created_at + ttl,
     )

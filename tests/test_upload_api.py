@@ -22,6 +22,7 @@ from document_intelligence.documents.uploads import UploadReservation, UploadSta
 from document_intelligence.storage.multipart import MultipartPart, MultipartUploadPlan, StoredObject
 
 NOW = datetime(2026, 8, 11, tzinfo=UTC)
+CORPUS_ID = UUID("00000000-0000-4000-8000-000000000007")
 MEMBERSHIP = Membership(
     user_id=UUID("00000000-0000-4000-8000-000000000001"),
     organization_id=UUID("00000000-0000-4000-8000-000000000002"),
@@ -130,6 +131,7 @@ async def test_authenticated_upload_api_reserves_completes_and_returns_signed_re
         reserved = await client.post(
             "/v1/uploads",
             json={
+                "corpus_id": str(CORPUS_ID),
                 "display_name": "Protocol",
                 "original_filename": "protocol.pdf",
                 "declared_size_bytes": 42,
@@ -156,6 +158,7 @@ async def test_authenticated_upload_api_reserves_completes_and_returns_signed_re
 async def test_upload_api_rejects_missing_or_invalid_key_without_leaking_lookup_details() -> None:
     client, _, _ = build_client()
     intent = {
+        "corpus_id": str(CORPUS_ID),
         "display_name": "Protocol",
         "original_filename": "protocol.pdf",
         "declared_size_bytes": 42,

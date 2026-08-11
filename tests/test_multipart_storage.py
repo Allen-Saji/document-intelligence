@@ -14,6 +14,7 @@ from document_intelligence.storage.multipart import (
     ObjectStorageError,
     S3CompatibleObjectStore,
 )
+from document_intelligence.storage.source import S3SourceObjectReader
 
 
 class NotFoundError(Exception):
@@ -74,6 +75,7 @@ def reservation(byte_size: int) -> UploadReservation:
         workspace_id=UUID("00000000-0000-4000-8000-000000000002"),
         actor_id=UUID("00000000-0000-4000-8000-000000000003"),
         intent=UploadIntent(
+            corpus_id=UUID("00000000-0000-4000-8000-000000000004"),
             display_name="Protocol specification",
             original_filename="protocol.pdf",
             declared_size_bytes=byte_size,
@@ -143,3 +145,29 @@ async def test_storage_requires_a_versioned_bucket() -> None:
 def test_storage_factory_requires_a_bucket() -> None:
     with pytest.raises(ValueError, match="APP_S3_BUCKET"):
         S3CompatibleObjectStore.from_settings(Settings(env="test"))
+
+
+@pytest.mark.asyncio
+async def test_source_reader_hashes_and_closes_object_body() -> None:
+    class Body(BytesIO):
+        def __init__(self, payload: bytes) -> None:
+            super().__init__(payload)
+            self.closed_seen = False
+
+        def close(self) -> None:
+            self.closed_seen = True
+            super().close()
+
+    body = Body(b"trusted")
+
+    class Client:
+        def get_object(self, **kwargs: Any) -> dict[str, Any]:
+            assert kwargs == {"Bucket": "documents", "Key": "immutable/source.pdf"}
+            return {"Body": body}
+
+    reader = S3SourceObjectReader(client=Client(), bucket="documents")
+
+    assert await reader.sha256("immutable/source.pdf") == (
+        "a9a089195c68d2adeee23beaa2c3a93b1d4cdf09046e7a9e520b3b166dff3e6a"
+    )
+    assert body.closed_seen is True

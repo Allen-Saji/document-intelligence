@@ -43,6 +43,7 @@ def stored_object() -> StoredObject:
         organization_id=UUID("00000000-0000-4000-8000-000000000002"),
         workspace_id=UUID("00000000-0000-4000-8000-000000000003"),
         actor_id=UUID("00000000-0000-4000-8000-000000000004"),
+        corpus_id=UUID("00000000-0000-4000-8000-000000000007"),
         document_id=UUID("00000000-0000-4000-8000-000000000005"),
         document_version_id=UUID("00000000-0000-4000-8000-000000000006"),
         display_name="Protocol",
@@ -97,7 +98,6 @@ async def test_document_starter_launches_the_real_pipeline_with_stable_identity(
     client = RecordingTemporalClient()
     starter = TemporalDocumentIngestionStarter(
         client=client,  # type: ignore[arg-type]
-        corpus_id=UUID("00000000-0000-4000-8000-000000000007"),
         pipeline_version="2026.08.11",
     )
 
@@ -114,6 +114,8 @@ async def test_projection_removal_starter_uses_a_durable_idempotency_key() -> No
     client = RecordingTemporalClient()
     request = ProjectionRemovalRequest(
         publication=PublicationRecord(
+            organization_id=UUID("00000000-0000-4000-8000-000000000002"),
+            workspace_id=UUID("00000000-0000-4000-8000-000000000003"),
             document_version_id=UUID("00000000-0000-4000-8000-000000000006"),
             idempotency_key="a" * 64,
             state=PublicationState.ACTIVE,
@@ -127,3 +129,4 @@ async def test_projection_removal_starter_uses_a_durable_idempotency_key() -> No
     assert client.workflow == DocumentProjectionRemovalWorkflow.run
     assert client.kwargs is not None
     assert client.kwargs["id"] == projection_removal_workflow_id(request)
+    assert str(request.publication.organization_id) in client.kwargs["id"]

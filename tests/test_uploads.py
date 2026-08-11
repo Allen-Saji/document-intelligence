@@ -21,6 +21,7 @@ def reserve() -> UploadReservation:
         workspace_id=UUID("00000000-0000-4000-8000-000000000002"),
         actor_id=UUID("00000000-0000-4000-8000-000000000003"),
         intent=UploadIntent(
+            corpus_id=UUID("00000000-0000-4000-8000-000000000004"),
             display_name="Consensus specification",
             original_filename="consensus-spec.pdf",
             declared_size_bytes=1024,
@@ -68,6 +69,7 @@ def test_expired_reservation_never_promotes() -> None:
         workspace_id=UUID("00000000-0000-4000-8000-000000000002"),
         actor_id=UUID("00000000-0000-4000-8000-000000000003"),
         intent=UploadIntent(
+            corpus_id=UUID("00000000-0000-4000-8000-000000000004"),
             display_name="Consensus specification",
             original_filename="consensus-spec.pdf",
             declared_size_bytes=1024,

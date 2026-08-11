@@ -42,7 +42,8 @@ def document_ingestion_workflow_id(request: IngestionRequest) -> str:
 def projection_removal_workflow_id(request: ProjectionRemovalRequest) -> str:
     publication = request.publication
     return (
-        f"projection-removal:{publication.document_version_id}:"
+        f"projection-removal:{publication.organization_id}:{publication.workspace_id}:"
+        f"{publication.document_version_id}:"
         f"{publication.idempotency_key}:{request.operation}"
     )
 
@@ -141,9 +142,8 @@ class TemporalDocumentIngestionStarter:
     not infer corpus membership from an object key.
     """
 
-    def __init__(self, *, client: Client, corpus_id: UUID, pipeline_version: str) -> None:
+    def __init__(self, *, client: Client, pipeline_version: str) -> None:
         self._client = client
-        self._corpus_id = corpus_id
         self._pipeline_version = pipeline_version
 
     async def start(self, stored: StoredObject) -> None:
@@ -153,7 +153,7 @@ class TemporalDocumentIngestionStarter:
         request = IngestionRequest(
             organization_id=stored.reservation.organization_id,
             workspace_id=stored.reservation.workspace_id,
-            corpus_id=self._corpus_id,
+            corpus_id=stored.reservation.corpus_id,
             document_id=str(stored.reservation.document_id),
             document_version_id=stored.reservation.document_version_id,
             source_object_key=final_key,

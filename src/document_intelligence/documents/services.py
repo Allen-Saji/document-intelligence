@@ -79,7 +79,12 @@ class UploadService:
         await self._audit(plan.reservation, "document.upload_reserved")
         return plan
 
-    async def complete(self, reservation_id: UUID, parts: Sequence[MultipartPart]) -> StoredObject:
+    async def complete(
+        self,
+        tenant: DatabaseTenantContext,
+        reservation_id: UUID,
+        parts: Sequence[MultipartPart],
+    ) -> StoredObject:
         reservation = await self._required_reservation(reservation_id)
         stored = await self._store.finalize_multipart_upload(reservation, parts)
         await self._repository.record_promoted_object(stored)
@@ -87,7 +92,9 @@ class UploadService:
         await self._start_ingestion(stored)
         return stored
 
-    async def abort(self, reservation_id: UUID) -> UploadReservation:
+    async def abort(
+        self, tenant: DatabaseTenantContext, reservation_id: UUID
+    ) -> UploadReservation:
         reservation = await self._required_reservation(reservation_id)
         await self._store.abort_multipart_upload(reservation)
         aborted = abort_upload(reservation)
@@ -95,7 +102,7 @@ class UploadService:
         await self._audit(aborted, "document.upload_aborted")
         return aborted
 
-    async def signed_read(self, reservation_id: UUID) -> str:
+    async def signed_read(self, tenant: DatabaseTenantContext, reservation_id: UUID) -> str:
         reservation = await self._required_reservation(reservation_id)
         if reservation.final_object_key is None:
             raise ValueError("upload has not been promoted")

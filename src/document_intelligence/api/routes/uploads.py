@@ -74,7 +74,10 @@ async def reserve(
     principal: Annotated[ApiKeyPrincipal, Depends(require_document_write_principal)],
     service: Annotated[UploadService, Depends(_service)],
 ) -> UploadPlanResponse:
-    plan = await service.reserve(tenant_from_principal(principal), intent)
+    try:
+        plan = await service.reserve(tenant_from_principal(principal), intent)
+    except PermissionError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     return _plan_response(plan)
 
 
@@ -82,11 +85,12 @@ async def reserve(
 async def complete(
     reservation_id: UUID,
     payload: CompleteUploadRequest,
-    _: Annotated[ApiKeyPrincipal, Depends(require_document_write_principal)],
+    principal: Annotated[ApiKeyPrincipal, Depends(require_document_write_principal)],
     service: Annotated[UploadService, Depends(_service)],
 ) -> UploadResponse:
     try:
         stored = await service.complete(
+            tenant_from_principal(principal),
             reservation_id,
             tuple(MultipartPart(**part.model_dump()) for part in payload.parts),
         )
@@ -94,6 +98,8 @@ async def complete(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="upload not found"
         ) from error
+    except PermissionError as error:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(error)) from error
     except ValueError as error:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(error)) from error
     return _stored_response(stored)
@@ -102,11 +108,11 @@ async def complete(
 @router.delete("/{reservation_id}", response_model=UploadResponse)
 async def abort(
     reservation_id: UUID,
-    _: Annotated[ApiKeyPrincipal, Depends(require_document_write_principal)],
+    principal: Annotated[ApiKeyPrincipal, Depends(require_document_write_principal)],
     service: Annotated[UploadService, Depends(_service)],
 ) -> UploadResponse:
     try:
-        reservation = await service.abort(reservation_id)
+        reservation = await service.abort(tenant_from_principal(principal), reservation_id)
     except UploadNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="upload not found"
@@ -117,11 +123,13 @@ async def abort(
 @router.get("/{reservation_id}/read", response_model=SignedReadResponse)
 async def signed_read(
     reservation_id: UUID,
-    _: Annotated[ApiKeyPrincipal, Depends(require_document_read_principal)],
+    principal: Annotated[ApiKeyPrincipal, Depends(require_document_read_principal)],
     service: Annotated[UploadService, Depends(_service)],
 ) -> SignedReadResponse:
     try:
-        return SignedReadResponse(url=await service.signed_read(reservation_id))
+        return SignedReadResponse(
+            url=await service.signed_read(tenant_from_principal(principal), reservation_id)
+        )
     except UploadNotFoundError as error:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="upload not found"
