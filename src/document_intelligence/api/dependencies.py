@@ -22,36 +22,27 @@ async def require_document_write_principal(
     request: Request,
     token: Annotated[str | None, Depends(api_key_header)],
 ) -> ApiKeyPrincipal:
-    if token is None:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="authentication required"
-        )
-    settings: Settings = request.app.state.settings
-    lookup: Callable[[str], Awaitable[ApiKeyRecord | None]] | None = getattr(
-        request.app.state, "api_key_lookup", None
-    )
-    pepper = settings.api_key_pepper.get_secret_value() if settings.api_key_pepper else ""
-    if lookup is None or not pepper:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="API key authentication is not configured",
-        )
-    try:
-        return await authenticate_api_key(
-            plaintext_token=token,
-            pepper=pepper,
-            lookup_by_prefix=lookup,
-            required_scope=ApiKeyScope.DOCUMENT_WRITE,
-        )
-    except ApiKeyAuthenticationError as error:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED, detail="invalid API key"
-        ) from error
+    return await _require_principal(request, token, ApiKeyScope.DOCUMENT_WRITE)
 
 
 async def require_document_read_principal(
     request: Request,
     token: Annotated[str | None, Depends(api_key_header)],
+) -> ApiKeyPrincipal:
+    return await _require_principal(request, token, ApiKeyScope.DOCUMENT_READ)
+
+
+async def require_investigation_read_principal(
+    request: Request,
+    token: Annotated[str | None, Depends(api_key_header)],
+) -> ApiKeyPrincipal:
+    return await _require_principal(request, token, ApiKeyScope.INVESTIGATION_READ)
+
+
+async def _require_principal(
+    request: Request,
+    token: str | None,
+    required_scope: ApiKeyScope,
 ) -> ApiKeyPrincipal:
     if token is None:
         raise HTTPException(
@@ -72,7 +63,7 @@ async def require_document_read_principal(
             plaintext_token=token,
             pepper=pepper,
             lookup_by_prefix=lookup,
-            required_scope=ApiKeyScope.DOCUMENT_READ,
+            required_scope=required_scope,
         )
     except ApiKeyAuthenticationError as error:
         raise HTTPException(
