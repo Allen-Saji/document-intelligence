@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Any, Literal
+from collections.abc import Sequence
+from math import isfinite
+from typing import Any, Literal, Protocol
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -37,6 +39,28 @@ class SearchHit(BaseModel):
             page_number=self.record.page_number,
             block_type=self.record.block_type,
         )
+
+
+class SemanticScorer(Protocol):
+    async def score(self, question: str, passages: Sequence[str]) -> Sequence[float]: ...
+
+
+class SemanticReranker:
+    """Apply a model-backed score while keeping tenant and evidence validation outside the model."""
+
+    def __init__(self, *, scorer: SemanticScorer) -> None:
+        self._scorer = scorer
+
+    async def rerank(self, question: str, hits: Sequence[SearchHit]) -> list[SearchHit]:
+        scores = list(await self._scorer.score(question, [hit.record.content for hit in hits]))
+        if len(scores) != len(hits) or any(not isfinite(score) for score in scores):
+            raise ValueError("reranker returned invalid scores")
+        return [
+            hit
+            for _, hit in sorted(
+                zip(scores, hits, strict=True), key=lambda pair: pair[0], reverse=True
+            )
+        ]
 
 
 def validate_tenant_hits(hits: list[SearchHit], tenant: TenantContext) -> None:
