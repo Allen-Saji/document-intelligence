@@ -19,6 +19,7 @@ from document_intelligence.auth.contracts import (
 from document_intelligence.config import Settings
 from document_intelligence.core.tenancy import TenantContext
 from document_intelligence.generation.service import AnswerStreamEvent
+from document_intelligence.security.limits import AnswerAdmissionController
 
 NOW = datetime(2026, 8, 11, tzinfo=UTC)
 ORG_ID = UUID("00000000-0000-4000-8000-000000000001")
@@ -58,6 +59,7 @@ def build_client(
     with_orchestrator: bool = True,
     with_resolver: bool = True,
     readable_corpora: tuple[UUID, ...] = (CORPUS_ID,),
+    answer_admission_controller: AnswerAdmissionController | None = None,
 ) -> tuple[httpx.AsyncClient, Streamer]:
     issued = issue_api_key(
         membership=MEMBERSHIP,
@@ -80,6 +82,8 @@ def build_client(
         app.state.answer_orchestrator = streamer
     if with_resolver:
         app.state.corpus_access_resolver = resolve
+    if answer_admission_controller is not None:
+        app.state.answer_admission_controller = answer_admission_controller
     client = httpx.AsyncClient(
         transport=httpx.ASGITransport(app=app),
         base_url="http://test",
@@ -167,3 +171,24 @@ async def test_answer_stream_rejects_callers_without_readable_corpora() -> None:
     assert response.status_code == 403
     assert response.json()["detail"] == "no readable corpora available"
     assert streamer.calls == []
+
+
+@pytest.mark.asyncio
+async def test_answer_stream_rate_limit_stops_before_orchestration() -> None:
+    controller = AnswerAdmissionController(
+        requests_per_minute=1,
+        monthly_token_budget=10_000,
+        estimated_output_tokens=100,
+        clock=lambda: NOW,
+    )
+    client, streamer = build_client(answer_admission_controller=controller)
+
+    async with client:
+        first = await client.post("/v1/answers:stream", json={"question": "What is finality?"})
+        second = await client.post("/v1/answers:stream", json={"question": "What is safety?"})
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()["detail"] == "answer rate limit exceeded"
+    assert second.headers["retry-after"] == "60"
+    assert len(streamer.calls) == 1

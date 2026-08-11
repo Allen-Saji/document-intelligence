@@ -12,6 +12,7 @@ from document_intelligence.api.dependencies import require_investigation_read_pr
 from document_intelligence.auth.contracts import ApiKeyPrincipal
 from document_intelligence.core.tenancy import TenantContext
 from document_intelligence.generation.orchestration import AnswerOrchestrator
+from document_intelligence.security.limits import AdmissionRejectedError, AnswerAdmissionController
 
 router = APIRouter(prefix="/v1", tags=["answers"])
 
@@ -34,6 +35,13 @@ def _orchestrator(request: Request) -> AnswerOrchestrator:
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="answers unavailable"
         )
     return service
+
+
+def _admission_controller(request: Request) -> AnswerAdmissionController | None:
+    controller: AnswerAdmissionController | None = getattr(
+        request.app.state, "answer_admission_controller", None
+    )
+    return controller
 
 
 async def _tenant_context(request: Request, principal: ApiKeyPrincipal) -> TenantContext:
@@ -70,7 +78,28 @@ async def stream_answer(
     request: Request,
     principal: Annotated[ApiKeyPrincipal, Depends(require_investigation_read_principal)],
     orchestrator: Annotated[AnswerOrchestrator, Depends(_orchestrator)],
+    admission_controller: Annotated[
+        AnswerAdmissionController | None, Depends(_admission_controller)
+    ],
 ) -> StreamingResponse:
+    if admission_controller is not None:
+        try:
+            await admission_controller.admit(
+                principal=principal,
+                question=payload.question,
+                conversation=payload.conversation,
+            )
+        except AdmissionRejectedError as error:
+            headers = (
+                {"Retry-After": str(error.retry_after_seconds)}
+                if error.retry_after_seconds is not None
+                else None
+            )
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=error.reason,
+                headers=headers,
+            ) from error
     tenant = await _tenant_context(request, principal)
     return StreamingResponse(
         (

@@ -38,6 +38,7 @@ from document_intelligence.retrieval.embeddings import (
 from document_intelligence.retrieval.opensearch import OpenSearchCandidateRetriever
 from document_intelligence.retrieval.opensearch_client import AsyncOpenSearchSearchClient
 from document_intelligence.retrieval.service import RetrievalService
+from document_intelligence.security.limits import AnswerAdmissionController
 from document_intelligence.storage.multipart import (
     MultipartPart,
     MultipartUploadPlan,
@@ -59,6 +60,7 @@ class RuntimeServiceBundle:
         search_client: CloseableService,
         api_key_lookup: ApiKeyLookup,
         corpus_access_resolver: Callable[[ApiKeyPrincipal], Awaitable[tuple[UUID, ...]]],
+        answer_admission_controller: AnswerAdmissionController,
         upload_service: DatabaseUploadService,
         answer_orchestrator: AnswerOrchestrator,
     ) -> None:
@@ -66,12 +68,14 @@ class RuntimeServiceBundle:
         self._search_client = search_client
         self.api_key_lookup = api_key_lookup
         self.corpus_access_resolver = corpus_access_resolver
+        self.answer_admission_controller = answer_admission_controller
         self.upload_service = upload_service
         self.answer_orchestrator = answer_orchestrator
 
     def install(self, app: FastAPI) -> None:
         app.state.api_key_lookup = self.api_key_lookup
         app.state.corpus_access_resolver = self.corpus_access_resolver
+        app.state.answer_admission_controller = self.answer_admission_controller
         app.state.upload_service = self.upload_service
         app.state.answer_orchestrator = self.answer_orchestrator
         app.state.runtime_services = self
@@ -121,6 +125,11 @@ def build_runtime_services(settings: Settings) -> RuntimeServiceBundle:
         search_client=search_client,
         api_key_lookup=DatabaseApiKeyLookup(database_engine),
         corpus_access_resolver=DatabaseCorpusAccessResolver(database_engine),
+        answer_admission_controller=AnswerAdmissionController(
+            requests_per_minute=settings.answer_rate_limit_per_minute,
+            monthly_token_budget=settings.answer_monthly_token_budget,
+            estimated_output_tokens=settings.answer_estimated_output_tokens,
+        ),
         upload_service=DatabaseUploadService(
             engine=database_engine,
             store=upload_store,

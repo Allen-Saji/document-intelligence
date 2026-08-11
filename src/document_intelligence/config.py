@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     ingestion_pipeline_version: str | None = None
     retrieval_index_version: str | None = None
     answer_pipeline_version: str | None = None
+    answer_rate_limit_per_minute: int = Field(default=30, ge=1, le=10_000)
+    answer_monthly_token_budget: int = Field(default=500_000, ge=1)
+    answer_estimated_output_tokens: int = Field(default=1_200, ge=1, le=100_000)
     generation_provider: str | None = None
     generation_model: str | None = None
     generation_test_model: str = "gpt-5.6-luna"
