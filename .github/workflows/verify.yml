@@ -19,3 +19,5 @@ jobs:
       - run: uv run pytest
       - run: uv build
       - run: uv run python scripts/export_openapi.py && git diff --exit-code -- docs/openapi.json
+      - run: uv run python scripts/phase6_security_check.py
+      - run: uv run python scripts/phase6_drill_manifest.py

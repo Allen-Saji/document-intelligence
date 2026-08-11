@@ -97,8 +97,9 @@ installed.
 
 ## Still required
 
-- External malware scanning integration. The current worker verifies source-object integrity before
-  parsing; it does not claim antivirus coverage.
+- External malware scanning operations. Phase 6 wires a ClamAV-compatible command adapter into the
+  worker, but hosted scanner definition updates, scanner health monitoring, and operations policy
+  remain production-readiness work.
 - Live infrastructure checks against PostgreSQL, OpenSearch, S3-compatible storage, and Temporal.
 - A larger retrieval and answer evaluation set before production model or ranking claims.
 
