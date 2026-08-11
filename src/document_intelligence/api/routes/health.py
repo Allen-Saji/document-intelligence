@@ -16,6 +16,7 @@ class HealthResponse(BaseModel):
     service: str
     version: str
     missing_settings: tuple[str, ...] = ()
+    runtime_errors: tuple[str, ...] = ()
 
 
 @router.get("/live", response_model=HealthResponse)
@@ -30,12 +31,14 @@ async def readiness(request: Request, response: Response) -> HealthResponse:
     missing = (
         settings.missing_production_settings() if settings.env in {"staging", "production"} else ()
     )
-    if missing:
+    runtime_errors: tuple[str, ...] = getattr(request.app.state, "runtime_composition_errors", ())
+    if missing or runtime_errors:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return HealthResponse(
             status="not_ready",
             service=settings.service_name,
             version=__version__,
             missing_settings=missing,
+            runtime_errors=runtime_errors,
         )
     return HealthResponse(status="ok", service=settings.service_name, version=__version__)

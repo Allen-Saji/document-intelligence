@@ -7,12 +7,16 @@ import pytest
 
 from document_intelligence.core.tenancy import TenantContext
 from document_intelligence.provenance import PageRegion
+from document_intelligence.retrieval.index import ChunkIndexRecord
 from document_intelligence.retrieval.opensearch import OpenSearchCandidateRetriever
+from document_intelligence.retrieval.opensearch_client import OpenSearchBulkIndexProjection
 from document_intelligence.retrieval.query import HybridQueryInput
 
 ORG_ID = UUID("00000000-0000-4000-8000-000000000001")
 WORKSPACE_ID = UUID("00000000-0000-4000-8000-000000000002")
 CORPUS_ID = UUID("00000000-0000-4000-8000-000000000003")
+DOCUMENT_VERSION_ID = UUID("00000000-0000-4000-8000-000000000005")
+CHUNK_ID = UUID("00000000-0000-4000-8000-000000000006")
 
 
 class Client:
@@ -86,3 +90,44 @@ async def test_adapter_rejects_malformed_search_response() -> None:
 
     with pytest.raises(ValueError, match="did not contain hits"):
         await retriever.lexical(query, tenant())
+
+
+@pytest.mark.asyncio
+async def test_bulk_projection_publishes_and_deletes_document_versions() -> None:
+    class BulkClient:
+        def __init__(self) -> None:
+            self.bulk_body = ""
+            self.deleted: dict[str, object] | None = None
+
+        async def bulk(self, *, body: str) -> dict[str, object]:
+            self.bulk_body = body
+            return {"errors": False}
+
+        async def delete_by_query(
+            self, *, index: str, body: dict[str, object]
+        ) -> dict[str, object]:
+            self.deleted = {"index": index, "body": body}
+            return {"deleted": 1}
+
+    client = BulkClient()
+    projection = OpenSearchBulkIndexProjection(client=client, index_name="chunks-current")  # type: ignore[arg-type]
+    record = ChunkIndexRecord(
+        organization_id=ORG_ID,
+        workspace_id=WORKSPACE_ID,
+        corpus_id=CORPUS_ID,
+        document_id="protocol",
+        document_version_id=DOCUMENT_VERSION_ID,
+        chunk_id=CHUNK_ID,
+        page_number=1,
+        content="trusted evidence",
+        embedding=(0.1, 0.2),
+    )
+
+    await projection.upsert((record,))
+    await projection.delete_version(DOCUMENT_VERSION_ID)
+
+    assert '"_index": "chunks-current"' in client.bulk_body
+    assert client.deleted == {
+        "index": "chunks-current",
+        "body": {"query": {"term": {"document_version_id": str(DOCUMENT_VERSION_ID)}}},
+    }

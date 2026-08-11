@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncConnection
 from document_intelligence.audit import AuditEventDraft
 from document_intelligence.auth.contracts import ApiKeyRecord
 from document_intelligence.documents.uploads import UploadReservation
+from document_intelligence.ingestion.publication import PublicationRecord
 from document_intelligence.storage.multipart import StoredObject
 
 
@@ -22,6 +23,16 @@ class PostgresTenantRepository:
 
     def __init__(self, connection: AsyncConnection) -> None:
         self._connection = connection
+
+    async def lookup_api_key_by_prefix(self, token_prefix: str) -> ApiKeyRecord | None:
+        """Lookup one API key through the narrow pre-tenant auth function."""
+
+        result = await self._connection.execute(
+            text("SELECT * FROM app.lookup_api_key_by_prefix(:token_prefix)"),
+            {"token_prefix": token_prefix},
+        )
+        row = result.mappings().one_or_none()
+        return ApiKeyRecord.model_validate(dict(row)) if row is not None else None
 
     async def lookup_api_key(self, token_prefix: str) -> ApiKeyRecord | None:
         result = await self._connection.execute(
@@ -42,6 +53,71 @@ class PostgresTenantRepository:
             {"api_key_id": api_key_id},
         )
 
+    async def readable_corpus_ids(self, actor_id: UUID) -> tuple[UUID, ...]:
+        """Resolve readable corpora inside an established tenant transaction."""
+
+        result = await self._connection.execute(
+            text(
+                "WITH active_membership AS ("
+                "SELECT role FROM app.memberships "
+                "WHERE user_id = :actor_id AND is_active = true LIMIT 1"
+                ") "
+                "SELECT DISTINCT corpora.id "
+                "FROM app.corpora "
+                "WHERE EXISTS ("
+                "SELECT 1 FROM active_membership "
+                "WHERE role IN ('owner', 'admin')"
+                ") "
+                "OR EXISTS ("
+                "SELECT 1 FROM app.corpus_permissions "
+                "JOIN app.group_members ON "
+                "group_members.organization_id = corpus_permissions.organization_id "
+                "AND group_members.workspace_id = corpus_permissions.workspace_id "
+                "AND group_members.group_id = corpus_permissions.group_id "
+                "WHERE corpus_permissions.corpus_id = corpora.id "
+                "AND corpus_permissions.can_read = true "
+                "AND group_members.user_id = :actor_id"
+                ") "
+                "ORDER BY corpora.id"
+            ),
+            {"actor_id": actor_id},
+        )
+        return tuple(UUID(str(row[0])) for row in result.all())
+
+    async def can_ingest_into_corpus(self, *, actor_id: UUID, corpus_id: UUID) -> bool:
+        """Authorize document upload into a corpus inside an established tenant transaction."""
+
+        result = await self._connection.execute(
+            text(
+                "WITH active_membership AS ("
+                "SELECT role FROM app.memberships "
+                "WHERE user_id = :actor_id AND is_active = true LIMIT 1"
+                ") "
+                "SELECT EXISTS ("
+                "SELECT 1 FROM app.corpora "
+                "WHERE corpora.id = :corpus_id "
+                "AND ("
+                "EXISTS ("
+                "SELECT 1 FROM active_membership "
+                "WHERE role IN ('owner', 'admin')"
+                ") "
+                "OR EXISTS ("
+                "SELECT 1 FROM app.corpus_permissions "
+                "JOIN app.group_members ON "
+                "group_members.organization_id = corpus_permissions.organization_id "
+                "AND group_members.workspace_id = corpus_permissions.workspace_id "
+                "AND group_members.group_id = corpus_permissions.group_id "
+                "WHERE corpus_permissions.corpus_id = corpora.id "
+                "AND corpus_permissions.can_read = true "
+                "AND group_members.user_id = :actor_id"
+                ")"
+                ")"
+                ")"
+            ),
+            {"actor_id": actor_id, "corpus_id": corpus_id},
+        )
+        return bool(result.scalar_one())
+
     async def create(self, reservation: UploadReservation) -> None:
         await self._connection.execute(
             text(
@@ -54,11 +130,11 @@ class PostgresTenantRepository:
             text(
                 "INSERT INTO app.upload_reservations ("
                 "id, organization_id, workspace_id, actor_id, document_id, "
-                "document_version_id, display_name, declared_size_bytes, state, "
+                "document_version_id, corpus_id, display_name, declared_size_bytes, state, "
                 "multipart_object_key, multipart_upload_id, "
                 "created_at, expires_at) VALUES ("
                 ":id, :organization_id, :workspace_id, :actor_id, :document_id, "
-                ":document_version_id, "
+                ":document_version_id, :corpus_id, "
                 ":display_name, :declared_size_bytes, :state, :multipart_object_key, "
                 ":multipart_upload_id, :created_at, :expires_at)"
             ),
@@ -143,6 +219,33 @@ class PostgresTenantRepository:
                 ":target_id, :request_id, :occurred_at)"
             ),
             event.model_dump(),
+        )
+
+    async def get_publication(self, idempotency_key: str) -> PublicationRecord | None:
+        result = await self._connection.execute(
+            text(
+                "SELECT organization_id, workspace_id, document_version_id, "
+                "idempotency_key, state, chunk_count "
+                "FROM app.document_publications WHERE idempotency_key = :idempotency_key"
+            ),
+            {"idempotency_key": idempotency_key},
+        )
+        row = result.mappings().one_or_none()
+        return PublicationRecord.model_validate(dict(row)) if row is not None else None
+
+    async def save_publication(self, record: PublicationRecord) -> None:
+        await self._connection.execute(
+            text(
+                "INSERT INTO app.document_publications ("
+                "organization_id, workspace_id, document_version_id, idempotency_key, "
+                "state, chunk_count"
+                ") VALUES ("
+                ":organization_id, :workspace_id, :document_version_id, :idempotency_key, "
+                ":state, :chunk_count"
+                ") ON CONFLICT (idempotency_key) DO UPDATE SET "
+                "state = EXCLUDED.state, chunk_count = EXCLUDED.chunk_count, updated_at = now()"
+            ),
+            record.model_dump(),
         )
 
 

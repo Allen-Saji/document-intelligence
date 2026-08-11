@@ -57,6 +57,7 @@ def build_client(
     scopes: tuple[ApiKeyScope, ...] = (ApiKeyScope.INVESTIGATION_READ,),
     with_orchestrator: bool = True,
     with_resolver: bool = True,
+    readable_corpora: tuple[UUID, ...] = (CORPUS_ID,),
 ) -> tuple[httpx.AsyncClient, Streamer]:
     issued = issue_api_key(
         membership=MEMBERSHIP,
@@ -71,7 +72,7 @@ def build_client(
         return issued.record if prefix == issued.record.token_prefix else None
 
     async def resolve(_: ApiKeyPrincipal) -> tuple[UUID, ...]:
-        return (CORPUS_ID,)
+        return readable_corpora
 
     app = create_app(Settings(env="test", api_key_pepper=SecretStr("test-pepper")))
     app.state.api_key_lookup = lookup
@@ -154,3 +155,15 @@ async def test_answer_stream_fails_closed_without_runtime_dependencies() -> None
 
     assert missing_service.status_code == 503
     assert missing_resolver.status_code == 503
+
+
+@pytest.mark.asyncio
+async def test_answer_stream_rejects_callers_without_readable_corpora() -> None:
+    client, streamer = build_client(readable_corpora=())
+
+    async with client:
+        response = await client.post("/v1/answers:stream", json={"question": "What is finality?"})
+
+    assert response.status_code == 403
+    assert response.json()["detail"] == "no readable corpora available"
+    assert streamer.calls == []

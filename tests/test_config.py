@@ -14,6 +14,8 @@ def test_production_environment_reports_names_not_values() -> None:
 
     assert "APP_DATABASE_URL" not in missing
     assert "APP_OPENSEARCH_URL" in missing
+    assert "APP_OPENSEARCH_INDEX_NAME" in missing
+    assert "APP_INGESTION_PIPELINE_VERSION" in missing
     assert "do-not-expose" not in repr(missing)
     assert settings.is_ready is False
 
@@ -36,8 +38,12 @@ def test_complete_production_configuration_is_ready() -> None:
         s3_bucket="documents",
         oidc_issuer=SecretStr("https://identity.example"),
         api_key_pepper=SecretStr("pepper"),
-        generation_provider="provider",
-        generation_model="model",
+        opensearch_index_name="chunks-current",
+        ingestion_pipeline_version="ingestion-v1",
+        retrieval_index_version="chunks-v1",
+        answer_pipeline_version="answers-v1",
+        generation_provider="openai",
+        generation_model="gpt-5.6-luna",
         openai_api_key=SecretStr("key"),
         otel_exporter_otlp_endpoint=SecretStr("https://otel.example"),
     )

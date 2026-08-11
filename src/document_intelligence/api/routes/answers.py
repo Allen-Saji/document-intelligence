@@ -6,7 +6,7 @@ from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 from document_intelligence.api.dependencies import require_investigation_read_principal
 from document_intelligence.auth.contracts import ApiKeyPrincipal
@@ -46,7 +46,13 @@ async def _tenant_context(request: Request, principal: ApiKeyPrincipal) -> Tenan
             detail="corpus authorization unavailable",
         )
     allowed_corpus_ids = await resolver(principal)
-    return principal.tenant_context(tuple(allowed_corpus_ids))
+    try:
+        return principal.tenant_context(tuple(allowed_corpus_ids))
+    except ValidationError as error:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="no readable corpora available",
+        ) from error
 
 
 @router.post(

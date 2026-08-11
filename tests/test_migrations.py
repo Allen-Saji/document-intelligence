@@ -46,3 +46,38 @@ def test_base_rls_migration_does_not_rely_on_a_fresh_compose_volume() -> None:
     assert "workspaces_tenant_isolation" in migration
     assert "documents_tenant_isolation" in migration
     assert migration.count("FORCE ROW LEVEL SECURITY") == 3
+
+
+def test_api_key_lookup_function_is_narrow_and_security_definer() -> None:
+    migration = Path("migrations/versions/0005_add_api_key_lookup_function.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "SECURITY DEFINER" in migration
+    assert "lookup_api_key_by_prefix" in migration
+    assert "WHERE api_keys.token_prefix = p_token_prefix" in migration
+    assert "GRANT EXECUTE ON FUNCTION app.lookup_api_key_by_prefix(text)" in migration
+
+
+def test_upload_reservations_persist_target_corpus() -> None:
+    migration = Path("migrations/versions/0006_add_upload_corpus_target.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "ADD COLUMN corpus_id uuid" in migration
+    assert "ORDER BY corpora.created_at, corpora.id" in migration
+    assert "ALTER COLUMN corpus_id SET NOT NULL" in migration
+    assert "upload_reservations_corpus_tenant_fk" in migration
+    assert "REFERENCES app.corpora(organization_id, workspace_id, id)" in migration
+
+
+def test_document_publications_are_tenant_scoped_and_durable() -> None:
+    migration = Path("migrations/versions/0007_add_document_publications.py").read_text(
+        encoding="utf-8"
+    )
+
+    assert "CREATE TABLE app.document_publications" in migration
+    assert "UNIQUE (idempotency_key)" in migration
+    assert "ENABLE ROW LEVEL SECURITY" in migration
+    assert "FORCE ROW LEVEL SECURITY" in migration
+    assert "document_publications_tenant_isolation" in migration

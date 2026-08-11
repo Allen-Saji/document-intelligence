@@ -32,6 +32,11 @@ class Settings(BaseSettings):
     s3_region: str = "us-east-1"
     oidc_issuer: SecretStr | None = None
     api_key_pepper: SecretStr | None = None
+    opensearch_index_name: str | None = None
+    embedding_model_name: str = "BAAI/bge-small-en-v1.5"
+    ingestion_pipeline_version: str | None = None
+    retrieval_index_version: str | None = None
+    answer_pipeline_version: str | None = None
     generation_provider: str | None = None
     generation_model: str | None = None
     generation_test_model: str = "gpt-5.6-luna"
@@ -49,6 +54,10 @@ class Settings(BaseSettings):
             "APP_S3_BUCKET": self.s3_bucket,
             "APP_OIDC_ISSUER": self.oidc_issuer,
             "APP_API_KEY_PEPPER": self.api_key_pepper,
+            "APP_OPENSEARCH_INDEX_NAME": self.opensearch_index_name,
+            "APP_INGESTION_PIPELINE_VERSION": self.ingestion_pipeline_version,
+            "APP_RETRIEVAL_INDEX_VERSION": self.retrieval_index_version,
+            "APP_ANSWER_PIPELINE_VERSION": self.answer_pipeline_version,
             "APP_GENERATION_PROVIDER": self.generation_provider,
             "APP_GENERATION_MODEL": self.generation_model,
             "APP_OPENAI_API_KEY": self.openai_api_key,
