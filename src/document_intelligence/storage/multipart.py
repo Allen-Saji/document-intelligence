@@ -238,6 +238,20 @@ class S3CompatibleObjectStore:
             UploadId=reservation.multipart_upload_id,
         )
 
+    async def signed_read_url(self, object_key: str) -> str:
+        """Return a short-lived download URL only for a server-authorized immutable key."""
+
+        url = await asyncio.to_thread(
+            self.client.generate_presigned_url,
+            "get_object",
+            Params={"Bucket": self.bucket, "Key": object_key},
+            ExpiresIn=self.signed_url_ttl_seconds,
+            HttpMethod="GET",
+        )
+        if not url:
+            raise ObjectStorageError("S3 did not return a signed read URL")
+        return url
+
     def _calculate_temporary_object_checksum(self, key: str, version_id: str) -> tuple[int, str]:
         response = self.client.get_object(Bucket=self.bucket, Key=key, VersionId=version_id)
         body = response.get("Body")

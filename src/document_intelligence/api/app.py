@@ -5,6 +5,7 @@ from fastapi import FastAPI
 
 from document_intelligence import __version__
 from document_intelligence.api.routes.health import router as health_router
+from document_intelligence.api.routes.uploads import router as uploads_router
 from document_intelligence.config import Settings, get_settings
 
 
@@ -23,4 +24,5 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     )
     app.state.settings = runtime_settings
     app.include_router(health_router)
+    app.include_router(uploads_router)
     return app

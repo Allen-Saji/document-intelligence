@@ -7,7 +7,7 @@ from typing import Any, Protocol
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection
 
-from document_intelligence.core.tenancy import TenantContext
+from document_intelligence.core.tenancy import DatabaseTenantContext
 
 
 class TenantTransactionConnection(Protocol):
@@ -15,7 +15,7 @@ class TenantTransactionConnection(Protocol):
 
 
 async def set_local_tenant_context(
-    connection: TenantTransactionConnection, tenant: TenantContext
+    connection: TenantTransactionConnection, tenant: DatabaseTenantContext
 ) -> None:
     """Bind verified tenant data to the current PostgreSQL transaction only."""
 
@@ -35,7 +35,7 @@ async def set_local_tenant_context(
 
 @asynccontextmanager
 async def tenant_transaction(
-    connection: AsyncConnection, tenant: TenantContext
+    connection: AsyncConnection, tenant: DatabaseTenantContext
 ) -> AsyncIterator[AsyncConnection]:
     """Ensure PostgreSQL RLS context cannot escape a transaction or pooled connection."""
 

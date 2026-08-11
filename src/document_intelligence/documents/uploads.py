@@ -182,3 +182,16 @@ def record_uploaded(
     if at > reservation.expires_at:
         return reservation.model_copy(update={"state": UploadState.EXPIRED})
     return reservation.model_copy(update={"state": UploadState.UPLOADED})
+
+
+def abort_upload(
+    reservation: UploadReservation, *, aborted_at: datetime | None = None
+) -> UploadReservation:
+    """Close an unpromoted reservation after its provider multipart upload is aborted."""
+
+    at = aborted_at or datetime.now(UTC)
+    if at.tzinfo is None:
+        raise ValueError("upload abort timestamps must be timezone-aware")
+    if reservation.state not in {UploadState.RESERVED, UploadState.UPLOADED}:
+        raise ValueError("only unpromoted uploads can be aborted")
+    return reservation.model_copy(update={"state": UploadState.FAILED, "completed_at": None})

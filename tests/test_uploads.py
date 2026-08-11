@@ -5,6 +5,7 @@ from document_intelligence.documents.uploads import (
     UploadIntent,
     UploadReservation,
     UploadState,
+    abort_upload,
     attach_multipart_upload,
     complete_upload,
     record_uploaded,
@@ -79,3 +80,9 @@ def test_expired_reservation_never_promotes() -> None:
     expired = record_uploaded(attached, received_at=NOW + timedelta(minutes=2))
 
     assert expired.state == UploadState.EXPIRED
+
+
+def test_abort_closes_only_unpromoted_uploads() -> None:
+    reservation = attach_multipart_upload(reserve(), multipart_upload_id="upload-1")
+
+    assert abort_upload(reservation).state == UploadState.FAILED
