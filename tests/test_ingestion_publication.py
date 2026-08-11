@@ -75,3 +75,18 @@ async def test_deletion_removes_an_active_projection() -> None:
     deleted = await publisher.delete(ledger.records[key])
 
     assert deleted.state == PublicationState.DELETED
+
+
+@pytest.mark.asyncio
+async def test_removal_retries_do_not_delete_the_projection_twice() -> None:
+    projection = Projection()
+    ledger = Ledger()
+    publisher = IdempotentPublisher(projection=projection, ledger=ledger)
+    key = "c" * 64
+    await publisher.publish((record(),), key)
+
+    first = await publisher.delete(ledger.records[key])
+    second = await publisher.delete(first)
+
+    assert second.state == PublicationState.DELETED
+    assert projection.deleted == [record().document_version_id]

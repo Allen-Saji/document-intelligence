@@ -9,6 +9,7 @@ from temporalio.client import Client
 from temporalio.common import RetryPolicy, WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 
 from document_intelligence.ingestion.pipeline import IngestionRequest
+from document_intelligence.ingestion.removal import ProjectionRemovalRequest
 from document_intelligence.storage.multipart import StoredObject
 
 INGESTION_TASK_QUEUE = "document-intelligence-ingestion-v1"
@@ -36,6 +37,14 @@ def document_ingestion_workflow_id(request: IngestionRequest) -> str:
     """Use the immutable version and parser version to deduplicate a full ingest."""
 
     return f"ingest:{request.document_version_id}:{request.pipeline_version}"
+
+
+def projection_removal_workflow_id(request: ProjectionRemovalRequest) -> str:
+    publication = request.publication
+    return (
+        f"projection-removal:{publication.document_version_id}:"
+        f"{publication.idempotency_key}:{request.operation}"
+    )
 
 
 @workflow.defn
@@ -78,6 +87,21 @@ class DocumentIngestionWorkflow:
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
         return request.document_id
+
+
+@workflow.defn
+class DocumentProjectionRemovalWorkflow:
+    """Durably remove an indexed version for rollback or deletion."""
+
+    @workflow.run
+    async def run(self, request: ProjectionRemovalRequest) -> str:
+        await workflow.execute_activity(
+            "remove_document_projection",
+            request,
+            start_to_close_timeout=timedelta(minutes=15),
+            retry_policy=RetryPolicy(maximum_attempts=3),
+        )
+        return str(request.publication.document_version_id)
 
 
 class TemporalIngestionStarter:
@@ -140,6 +164,23 @@ class TemporalDocumentIngestionStarter:
             DocumentIngestionWorkflow.run,
             request,
             id=document_ingestion_workflow_id(request),
+            task_queue=INGESTION_TASK_QUEUE,
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+
+
+class TemporalProjectionRemovalStarter:
+    """Start one idempotent rollback or deletion workflow per publication."""
+
+    def __init__(self, *, client: Client) -> None:
+        self._client = client
+
+    async def start(self, request: ProjectionRemovalRequest) -> None:
+        await self._client.start_workflow(
+            DocumentProjectionRemovalWorkflow.run,
+            request,
+            id=projection_removal_workflow_id(request),
             task_queue=INGESTION_TASK_QUEUE,
             id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
             id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,

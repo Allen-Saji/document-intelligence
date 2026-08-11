@@ -61,13 +61,21 @@ class IdempotentPublisher:
         )
 
     async def rollback(self, record: PublicationRecord) -> PublicationRecord:
-        await self._projection.delete_version(record.document_version_id)
-        rolled_back = record.model_copy(update={"state": PublicationState.ROLLED_BACK})
-        await self._ledger.save(rolled_back)
-        return rolled_back
+        return await self._remove(record, PublicationState.ROLLED_BACK)
 
     async def delete(self, record: PublicationRecord) -> PublicationRecord:
-        await self._projection.delete_version(record.document_version_id)
-        deleted = record.model_copy(update={"state": PublicationState.DELETED})
-        await self._ledger.save(deleted)
-        return deleted
+        return await self._remove(record, PublicationState.DELETED)
+
+    async def _remove(
+        self, record: PublicationRecord, target: PublicationState
+    ) -> PublicationRecord:
+        current = await self._ledger.get(record.idempotency_key)
+        if current is None:
+            raise ValueError("cannot remove a publication that is not recorded")
+        if current.state == target:
+            return current
+        if current.state == PublicationState.ACTIVE:
+            await self._projection.delete_version(current.document_version_id)
+        updated = current.model_copy(update={"state": target})
+        await self._ledger.save(updated)
+        return updated

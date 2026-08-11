@@ -6,16 +6,24 @@ from uuid import UUID
 import pytest
 
 from document_intelligence.documents.uploads import UploadReservation, UploadState
+from document_intelligence.ingestion.publication import PublicationRecord, PublicationState
+from document_intelligence.ingestion.removal import (
+    ProjectionRemovalOperation,
+    ProjectionRemovalRequest,
+)
 from document_intelligence.storage.multipart import StoredObject
 from document_intelligence.workflows.ingestion import (
     INGESTION_TASK_QUEUE,
     DocumentIngestionWorkflow,
+    DocumentProjectionRemovalWorkflow,
     IngestionInput,
     IngestionWorkflow,
     TemporalDocumentIngestionStarter,
     TemporalIngestionStarter,
+    TemporalProjectionRemovalStarter,
     document_ingestion_workflow_id,
     ingestion_workflow_id,
+    projection_removal_workflow_id,
 )
 
 
@@ -99,3 +107,23 @@ async def test_document_starter_launches_the_real_pipeline_with_stable_identity(
     assert client.kwargs is not None
     assert client.kwargs["id"] == "ingest:00000000-0000-4000-8000-000000000006:2026.08.11"
     assert document_ingestion_workflow_id(client.input) == client.kwargs["id"]  # type: ignore[arg-type]
+
+
+@pytest.mark.asyncio
+async def test_projection_removal_starter_uses_a_durable_idempotency_key() -> None:
+    client = RecordingTemporalClient()
+    request = ProjectionRemovalRequest(
+        publication=PublicationRecord(
+            document_version_id=UUID("00000000-0000-4000-8000-000000000006"),
+            idempotency_key="a" * 64,
+            state=PublicationState.ACTIVE,
+            chunk_count=3,
+        ),
+        operation=ProjectionRemovalOperation.DELETE,
+    )
+
+    await TemporalProjectionRemovalStarter(client=client).start(request)  # type: ignore[arg-type]
+
+    assert client.workflow == DocumentProjectionRemovalWorkflow.run
+    assert client.kwargs is not None
+    assert client.kwargs["id"] == projection_removal_workflow_id(request)
