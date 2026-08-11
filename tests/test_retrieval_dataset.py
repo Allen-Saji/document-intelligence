@@ -6,10 +6,13 @@ from pydantic import ValidationError
 from document_intelligence.evaluation.retrieval import (
     EvidenceLocation,
     RetrievalCase,
+    RetrievalMeasurement,
+    candidate_beats_baseline,
     dataset_category_counts,
     load_retrieval_dataset,
     recall_at_k,
     reciprocal_rank,
+    summarize_retrieval_measurements,
 )
 
 
@@ -82,3 +85,36 @@ def test_unanswerable_metrics_are_not_scored_as_recall() -> None:
 
     assert recall_at_k(case, [], 5) is None
     assert reciprocal_rank(case, []) is None
+
+
+def test_category_metrics_and_selection_gate_require_measured_ranking_gain() -> None:
+    case = RetrievalCase(
+        id="case",
+        question="Where is the formula?",
+        category="factual",
+        expected_state="supported",
+        gold_evidence=[EvidenceLocation(document_id="doc", page_number=2)],
+    )
+    baseline = summarize_retrieval_measurements(
+        [
+            RetrievalMeasurement(
+                case=case,
+                pipeline="lexical",
+                retrieved=(EvidenceLocation(document_id="doc", page_number=2),),
+                latency_ms=5,
+            )
+        ]
+    )
+    candidate = summarize_retrieval_measurements(
+        [
+            RetrievalMeasurement(
+                case=case,
+                pipeline="hybrid-reranked",
+                retrieved=(EvidenceLocation(document_id="other", page_number=2),),
+                latency_ms=10,
+            )
+        ]
+    )
+
+    assert baseline.category_recall_at_5 == {"factual": 1.0}
+    assert not candidate_beats_baseline(candidate, baseline, max_mean_latency_ms=20)
