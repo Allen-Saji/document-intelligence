@@ -2,8 +2,8 @@
 
 Document Intelligence is a production-focused application for investigating technical PDFs. It is designed to answer questions with claim-level citations that resolve to an immutable document version, physical PDF page, source passage, and page region.
 
-Phase 0 architecture validation is complete. Phase 1 platform foundation is in progress. The
-repository is not deployed and does not make production-readiness claims.
+Phases 0 through 4 are complete as backend application contracts. The repository is not deployed
+and does not make production-readiness claims.
 
 ## Product contract
 
@@ -42,6 +42,12 @@ The repository already contains executable application contracts for:
 - stable Temporal workflow identities for each immutable version and pipeline revision
 - versioned OpenSearch indexes with atomic alias publish and rollback operations
 - tenant-aware cache keys and content-free request telemetry
+- a provider-neutral structured answer service that re-authorizes packed evidence before generation,
+  resolves citations server-side, bounds citation repair, and streams only validated terminal events
+- an authenticated `POST /v1/answers:stream` route that derives tenant and corpus scope on the
+  server before retrieval and generation
+- an OpenAI Responses API adapter that uses strict structured output and disables provider-side
+  response storage
 
 It also contains a pinned four-document parser corpus, a repeatable Docling benchmark, and saved
 Phase 0 probes for real retrieval, Temporal recovery, S3-compatible storage, and tracing.
@@ -101,12 +107,31 @@ after route changes with:
 uv run python scripts/export_openapi.py
 ```
 
-Upload endpoints require a scoped `X-API-Key` and are intentionally unavailable until the runtime
-is configured with a database-backed key lookup, S3-compatible storage adapter, and Temporal
-workflow starter. The HTTP contract is stable and exercised with in-memory adapters in tests; the
-production composition root is the next deployment concern, not a bypass around tenant isolation.
+Upload and answer endpoints require a scoped `X-API-Key` and are intentionally unavailable until
+the runtime is configured with database-backed key lookup, tenant corpus authorization, storage,
+retrieval, and workflow adapters. The HTTP contract is stable and exercised with in-memory adapters
+in tests; the production composition root is the next deployment concern, not a bypass around
+tenant isolation.
+
+Answer streaming accepts only the user question and optional conversation turns. Caller-supplied
+corpus IDs, tenant IDs, evidence, citations, or provider choices are rejected by schema validation
+or ignored by the trusted server pipeline. Citation regions are conservative page-level rectangles
+derived from parser provenance and carried through indexing, retrieval, answer validation, and the
+public citation payload.
 
 Readiness reports only missing configuration names. It never returns credential values.
+
+## OpenAI generation smoke check
+
+The OpenAI adapter reads `OPENAI_API_KEY` or `APP_OPENAI_API_KEY` at runtime. Do not copy a key
+into this repository or commit an environment file. The default test model is `gpt-5.6-luna`.
+
+```bash
+uv run python scripts/openai_generation_smoke.py
+```
+
+The smoke request uses one synthetic passage, disables provider-side response storage, and prints
+only the evidence state plus whether its opaque citation ID matched.
 
 ## Infrastructure profiles
 
@@ -131,18 +156,21 @@ The local credentials in `compose.yaml` are development-only. Production secrets
 - `tests/`: deterministic foundation tests
 - `spikes/`: Phase 0 executable probes and acceptance notes
 - `infra/`: local infrastructure and isolation proofs
-- `docs/`: architecture, Phase 0 gates, and security boundaries
+- `docs/`: architecture, phase gates, and security boundaries
 - `docs/openapi.json`: generated HTTP contract committed for client generation
 
 ## Current boundaries
 
 - No product UI exists yet.
-- No external generation provider is selected yet.
-- No private customer document should be uploaded during Phase 0.
+- No private customer document should be uploaded until production storage, auth, and retention
+  controls are deployed and audited.
 - The parser corpus uses public technical documents and locally fetched evaluation fixtures.
+- The answer endpoint needs production wiring for corpus authorization, BGE-compatible query
+  embedding, retrieval adapters, and provider configuration before deployment.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Phase 0 gates](docs/phase-0.md)
+- [Phase 4 answer boundary](docs/phase-4.md)
 - [Security boundary](docs/security.md)
