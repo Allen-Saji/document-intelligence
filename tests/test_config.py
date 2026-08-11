@@ -38,6 +38,7 @@ def test_complete_production_configuration_is_ready() -> None:
         api_key_pepper=SecretStr("pepper"),
         generation_provider="provider",
         generation_model="model",
+        openai_api_key=SecretStr("key"),
         otel_exporter_otlp_endpoint=SecretStr("https://otel.example"),
     )
 

@@ -1,7 +1,7 @@
 from functools import lru_cache
 from typing import Literal
 
-from pydantic import SecretStr
+from pydantic import AliasChoices, Field, SecretStr
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -17,6 +17,7 @@ class Settings(BaseSettings):
         env_file_encoding="utf-8",
         env_prefix="APP_",
         extra="ignore",
+        populate_by_name=True,
     )
 
     env: Literal["local", "test", "staging", "production"] = "local"
@@ -33,6 +34,11 @@ class Settings(BaseSettings):
     api_key_pepper: SecretStr | None = None
     generation_provider: str | None = None
     generation_model: str | None = None
+    generation_test_model: str = "gpt-5.6-luna"
+    openai_api_key: SecretStr | None = Field(
+        default=None,
+        validation_alias=AliasChoices("APP_OPENAI_API_KEY", "OPENAI_API_KEY"),
+    )
     otel_exporter_otlp_endpoint: SecretStr | None = None
 
     def missing_production_settings(self) -> tuple[str, ...]:
@@ -45,6 +51,7 @@ class Settings(BaseSettings):
             "APP_API_KEY_PEPPER": self.api_key_pepper,
             "APP_GENERATION_PROVIDER": self.generation_provider,
             "APP_GENERATION_MODEL": self.generation_model,
+            "APP_OPENAI_API_KEY": self.openai_api_key,
             "APP_OTEL_EXPORTER_OTLP_ENDPOINT": self.otel_exporter_otlp_endpoint,
         }
         return tuple(name for name, value in required.items() if not _is_present(value))

@@ -44,6 +44,7 @@ async def test_production_readiness_succeeds_with_complete_configuration() -> No
         api_key_pepper=SecretStr("pepper"),
         generation_provider="provider",
         generation_model="model",
+        openai_api_key=SecretStr("key"),
         otel_exporter_otlp_endpoint=SecretStr("https://otel.example"),
     )
     app = create_app(settings)
