@@ -2,8 +2,8 @@ from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 import pytest
-from document_intelligence.auth.api_keys import ApiKeyAuthenticationError, authenticate_api_key
 
+from document_intelligence.auth.api_keys import ApiKeyAuthenticationError, authenticate_api_key
 from document_intelligence.auth.contracts import (
     ApiKeyScope,
     Membership,

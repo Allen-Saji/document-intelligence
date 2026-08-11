@@ -57,6 +57,9 @@ target-version = "py312"
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "RUF"]
 
+[tool.ruff.lint.isort]
+known-first-party = ["document_intelligence"]
+
 [tool.mypy]
 python_version = "3.12"
 strict = true

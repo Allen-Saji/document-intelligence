@@ -23,7 +23,7 @@ def safe_attributes(attributes: Mapping[str, Any]) -> dict[str, str | int | floa
         normalized_key = key.casefold()
         if any(part in normalized_key for part in BLOCKED_ATTRIBUTE_PARTS):
             continue
-        if isinstance(value, (str, int, float, bool)):
+        if isinstance(value, str | int | float | bool):
             sanitized[key] = value
     return sanitized
 
