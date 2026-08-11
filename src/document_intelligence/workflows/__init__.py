@@ -3,7 +3,9 @@ from document_intelligence.workflows.ingestion import (
     DocumentIngestionWorkflow,
     IngestionInput,
     IngestionWorkflow,
+    TemporalDocumentIngestionStarter,
     TemporalIngestionStarter,
+    document_ingestion_workflow_id,
     ingestion_workflow_id,
 )
 
@@ -12,6 +14,8 @@ __all__ = [
     "DocumentIngestionWorkflow",
     "IngestionInput",
     "IngestionWorkflow",
+    "TemporalDocumentIngestionStarter",
     "TemporalIngestionStarter",
+    "document_ingestion_workflow_id",
     "ingestion_workflow_id",
 ]

@@ -63,6 +63,7 @@ def request() -> IngestionRequest:
         workspace_id=UUID("00000000-0000-4000-8000-000000000003"),
         corpus_id=UUID("00000000-0000-4000-8000-000000000004"),
         document_id="protocol-spec",
+        document_version_id=UUID("00000000-0000-4000-8000-000000000001"),
         source_object_key="immutable/doc.pdf",
         source_sha256="a" * 64,
         pipeline_version="v1",
@@ -134,6 +135,22 @@ async def test_pipeline_rejects_parser_output_for_a_different_verified_source() 
     mismatched = source().model_copy(update={"sha256": "b" * 64})
     document = IngestionDocument(
         source=mismatched, pages=(PageExtraction(page_number=1, text="x"),)
+    )
+    pipeline = IngestionPipeline(
+        scanner=Scanner(), parser=Parser(document), embedder=Embedder(), publisher=Publisher()
+    )
+
+    with pytest.raises(ValueError, match="does not match"):
+        await pipeline.run(request())
+
+
+@pytest.mark.asyncio
+async def test_pipeline_rejects_parser_output_for_a_different_document_version() -> None:
+    document = IngestionDocument(
+        source=source().model_copy(
+            update={"document_version_id": UUID("00000000-0000-4000-8000-000000000099")}
+        ),
+        pages=(PageExtraction(page_number=1, text="x"),),
     )
     pipeline = IngestionPipeline(
         scanner=Scanner(), parser=Parser(document), embedder=Embedder(), publisher=Publisher()

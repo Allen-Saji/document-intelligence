@@ -32,6 +32,12 @@ def ingestion_workflow_id(input: IngestionInput) -> str:
     return f"ingest:{input.document_version_id}:{input.pipeline_version}"
 
 
+def document_ingestion_workflow_id(request: IngestionRequest) -> str:
+    """Use the immutable version and parser version to deduplicate a full ingest."""
+
+    return f"ingest:{request.document_version_id}:{request.pipeline_version}"
+
+
 @workflow.defn
 class IngestionWorkflow:
     """Durable ordered ingestion shell registered by the worker deployment."""
@@ -98,6 +104,42 @@ class TemporalIngestionStarter:
             IngestionWorkflow.run,
             input,
             id=ingestion_workflow_id(input),
+            task_queue=INGESTION_TASK_QUEUE,
+            id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
+            id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,
+        )
+
+
+class TemporalDocumentIngestionStarter:
+    """Start the scan-to-publication workflow after immutable upload promotion.
+
+    The caller selects the destination corpus. Upload storage intentionally does
+    not infer corpus membership from an object key.
+    """
+
+    def __init__(self, *, client: Client, corpus_id: UUID, pipeline_version: str) -> None:
+        self._client = client
+        self._corpus_id = corpus_id
+        self._pipeline_version = pipeline_version
+
+    async def start(self, stored: StoredObject) -> None:
+        final_key = stored.reservation.final_object_key
+        if final_key is None:
+            raise ValueError("an immutable source object is required for ingestion")
+        request = IngestionRequest(
+            organization_id=stored.reservation.organization_id,
+            workspace_id=stored.reservation.workspace_id,
+            corpus_id=self._corpus_id,
+            document_id=str(stored.reservation.document_id),
+            document_version_id=stored.reservation.document_version_id,
+            source_object_key=final_key,
+            source_sha256=stored.sha256,
+            pipeline_version=self._pipeline_version,
+        )
+        await self._client.start_workflow(
+            DocumentIngestionWorkflow.run,
+            request,
+            id=document_ingestion_workflow_id(request),
             task_queue=INGESTION_TASK_QUEUE,
             id_reuse_policy=WorkflowIDReusePolicy.REJECT_DUPLICATE,
             id_conflict_policy=WorkflowIDConflictPolicy.USE_EXISTING,

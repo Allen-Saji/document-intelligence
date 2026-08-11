@@ -24,6 +24,7 @@ class IngestionRequest(BaseModel):
     workspace_id: UUID
     corpus_id: UUID
     document_id: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$")
+    document_version_id: UUID
     source_object_key: str = Field(min_length=1)
     source_sha256: str = Field(pattern=r"^[a-f0-9]{64}$")
     pipeline_version: str = Field(min_length=1)
@@ -76,6 +77,7 @@ class IngestionPipeline:
             if (
                 document.source.object_key != request.source_object_key
                 or document.source.sha256 != request.source_sha256
+                or document.source.document_version_id != request.document_version_id
             ):
                 raise ValueError("parser result does not match the verified source")
             chunks = chunk_document(document)

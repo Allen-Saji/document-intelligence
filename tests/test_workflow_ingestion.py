@@ -9,9 +9,12 @@ from document_intelligence.documents.uploads import UploadReservation, UploadSta
 from document_intelligence.storage.multipart import StoredObject
 from document_intelligence.workflows.ingestion import (
     INGESTION_TASK_QUEUE,
+    DocumentIngestionWorkflow,
     IngestionInput,
     IngestionWorkflow,
+    TemporalDocumentIngestionStarter,
     TemporalIngestionStarter,
+    document_ingestion_workflow_id,
     ingestion_workflow_id,
 )
 
@@ -79,3 +82,20 @@ def test_workflow_identity_changes_when_pipeline_or_document_version_changes() -
     )
 
     assert ingestion_workflow_id(input) == "ingest:00000000-0000-4000-8000-000000000006:v1"
+
+
+@pytest.mark.asyncio
+async def test_document_starter_launches_the_real_pipeline_with_stable_identity() -> None:
+    client = RecordingTemporalClient()
+    starter = TemporalDocumentIngestionStarter(
+        client=client,  # type: ignore[arg-type]
+        corpus_id=UUID("00000000-0000-4000-8000-000000000007"),
+        pipeline_version="2026.08.11",
+    )
+
+    await starter.start(stored_object())
+
+    assert client.workflow == DocumentIngestionWorkflow.run
+    assert client.kwargs is not None
+    assert client.kwargs["id"] == "ingest:00000000-0000-4000-8000-000000000006:2026.08.11"
+    assert document_ingestion_workflow_id(client.input) == client.kwargs["id"]  # type: ignore[arg-type]
