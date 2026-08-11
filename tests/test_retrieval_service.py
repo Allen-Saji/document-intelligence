@@ -5,6 +5,7 @@ from uuid import UUID
 import pytest
 
 from document_intelligence.core.tenancy import TenantContext
+from document_intelligence.retrieval.expansion import AdjacentContextExpander
 from document_intelligence.retrieval.fusion import (
     reciprocal_rank_fusion,
     select_source_diverse_hits,
@@ -78,6 +79,11 @@ class Rewriter:
         assert conversation == ("Which protocol?",)
         assert question == "What about finality?"
         return "Does SVM-1 define FINALITY?"
+
+
+class Neighbors:
+    async def neighbors(self, **_: object) -> list[SearchHit]:
+        return [hit(chunk=2, document="protocol", content="adjacent evidence")]
 
 
 def request(**updates: object) -> RetrievalRequest:
@@ -188,3 +194,15 @@ async def test_service_rewrites_a_follow_up_before_retrieval() -> None:
     )
 
     assert result.explanation.search_question == "Does SVM-1 define FINALITY?"
+
+
+@pytest.mark.asyncio
+async def test_adjacent_expansion_preserves_ranked_evidence_and_adds_neighbors() -> None:
+    expander = AdjacentContextExpander(neighbors=Neighbors())
+
+    expanded = await expander.expand([hit(chunk=1)], tenant())
+
+    assert [item.record.chunk_id for item in expanded] == [
+        hit(chunk=1).record.chunk_id,
+        hit(chunk=2).record.chunk_id,
+    ]
