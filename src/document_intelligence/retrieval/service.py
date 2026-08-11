@@ -35,6 +35,7 @@ class RetrievalRequest(BaseModel):
     question: str = Field(min_length=1, max_length=4_000)
     query_vector: tuple[float, ...] = Field(min_length=1)
     standalone_question: str | None = Field(default=None, min_length=1, max_length=4_000)
+    conversation: tuple[str, ...] = ()
     exact_terms: tuple[str, ...] = ()
     lexical_candidates: int = Field(default=50, ge=1, le=500)
     dense_candidates: int = Field(default=50, ge=1, le=500)
@@ -104,17 +105,34 @@ class CandidateRetriever(Protocol):
     ) -> Sequence[SearchHit]: ...
 
 
+class ConversationRewriter(Protocol):
+    async def rewrite(self, conversation: Sequence[str], question: str) -> str: ...
+
+
+class ContextExpander(Protocol):
+    async def expand(
+        self, hits: Sequence[SearchHit], tenant: TenantContext
+    ) -> Sequence[SearchHit]: ...
+
+
 class RetrievalService:
     """Run independent tenant-scoped retrieval branches and construct an evidence packet."""
 
     def __init__(
-        self, *, retriever: CandidateRetriever, semantic_reranker: SemanticReranker | None = None
+        self,
+        *,
+        retriever: CandidateRetriever,
+        semantic_reranker: SemanticReranker | None = None,
+        conversation_rewriter: ConversationRewriter | None = None,
+        context_expander: ContextExpander | None = None,
     ) -> None:
         self._retriever = retriever
         self._semantic_reranker = semantic_reranker
+        self._conversation_rewriter = conversation_rewriter
+        self._context_expander = context_expander
 
     async def retrieve(self, request: RetrievalRequest) -> RetrievalResult:
-        prepared = prepare_query(request)
+        prepared = await self._prepare_query(request)
         query = HybridQueryInput(
             question=prepared.search_question,
             query_vector=request.query_vector,
@@ -131,8 +149,9 @@ class RetrievalService:
         validate_tenant_hits(dense_hits, request.tenant)
         fused = reciprocal_rank_fusion((lexical_hits, dense_hits))
         reranked = await self._rerank(prepared, fused)
+        expanded = await self._expand(reranked, request.tenant)
         diverse = select_source_diverse_hits(
-            reranked,
+            expanded,
             per_document_limit=request.per_document_limit,
             limit=request.source_limit,
         )
@@ -155,6 +174,23 @@ class RetrievalService:
         if self._semantic_reranker is None:
             return rerank_hits(list(hits), list(prepared.exact_terms))
         return await self._semantic_reranker.rerank(prepared.search_question, hits)
+
+    async def _prepare_query(self, request: RetrievalRequest) -> PreparedQuery:
+        if request.standalone_question is not None or not request.conversation:
+            return prepare_query(request)
+        if self._conversation_rewriter is None:
+            return prepare_query(request)
+        rewritten = await self._conversation_rewriter.rewrite(
+            request.conversation, request.question
+        )
+        return prepare_query(request.model_copy(update={"standalone_question": rewritten}))
+
+    async def _expand(self, hits: Sequence[SearchHit], tenant: TenantContext) -> list[SearchHit]:
+        if self._context_expander is None:
+            return list(hits)
+        expanded = list(await self._context_expander.expand(hits, tenant))
+        validate_tenant_hits(expanded, tenant)
+        return expanded
 
 
 def prepare_query(request: RetrievalRequest) -> PreparedQuery:

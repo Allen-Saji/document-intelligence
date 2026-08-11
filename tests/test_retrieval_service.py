@@ -73,6 +73,13 @@ class Scorer:
         return [float(index) for index, _ in enumerate(passages)]
 
 
+class Rewriter:
+    async def rewrite(self, conversation: tuple[str, ...], question: str) -> str:
+        assert conversation == ("Which protocol?",)
+        assert question == "What about finality?"
+        return "Does SVM-1 define FINALITY?"
+
+
 def request(**updates: object) -> RetrievalRequest:
     values: dict[str, object] = {
         "tenant": tenant(),
@@ -168,3 +175,16 @@ async def test_service_can_use_an_injected_semantic_reranker() -> None:
     result = await service.retrieve(request())
 
     assert result.evidence.items[0].content == "second"
+
+
+@pytest.mark.asyncio
+async def test_service_rewrites_a_follow_up_before_retrieval() -> None:
+    service = RetrievalService(
+        retriever=Retriever(lexical=[], dense=[]), conversation_rewriter=Rewriter()
+    )
+
+    result = await service.retrieve(
+        request(question="What about finality?", conversation=("Which protocol?",))
+    )
+
+    assert result.explanation.search_question == "Does SVM-1 define FINALITY?"
