@@ -38,6 +38,10 @@ The repository already contains executable application contracts for:
 - verified-identity, workspace-role, and scoped hashed API-key contracts
 - transaction-local PostgreSQL tenant context for non-bypassing application connections
 - multipart upload reservation, server-verified promotion, and immutable object-key contracts
+- API-key-authenticated multipart reservation, completion, abort, and signed-read routes
+- stable Temporal workflow identities for each immutable version and pipeline revision
+- versioned OpenSearch indexes with atomic alias publish and rollback operations
+- tenant-aware cache keys and content-free request telemetry
 
 It also contains a pinned four-document parser corpus, a repeatable Docling benchmark, and saved
 Phase 0 probes for real retrieval, Temporal recovery, S3-compatible storage, and tracing.
@@ -90,6 +94,18 @@ Then open:
 - `GET http://127.0.0.1:8000/health/live`
 - `GET http://127.0.0.1:8000/health/ready`
 
+The generated API contract is checked in at [`docs/openapi.json`](docs/openapi.json). Regenerate it
+after route changes with:
+
+```bash
+uv run python scripts/export_openapi.py
+```
+
+Upload endpoints require a scoped `X-API-Key` and are intentionally unavailable until the runtime
+is configured with a database-backed key lookup, S3-compatible storage adapter, and Temporal
+workflow starter. The HTTP contract is stable and exercised with in-memory adapters in tests; the
+production composition root is the next deployment concern, not a bypass around tenant isolation.
+
 Readiness reports only missing configuration names. It never returns credential values.
 
 ## Infrastructure profiles
@@ -116,6 +132,7 @@ The local credentials in `compose.yaml` are development-only. Production secrets
 - `spikes/`: Phase 0 executable probes and acceptance notes
 - `infra/`: local infrastructure and isolation proofs
 - `docs/`: architecture, Phase 0 gates, and security boundaries
+- `docs/openapi.json`: generated HTTP contract committed for client generation
 
 ## Current boundaries
 
