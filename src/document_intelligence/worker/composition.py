@@ -14,6 +14,8 @@ from document_intelligence.database.repositories import PostgresTenantRepository
 from document_intelligence.database.tenancy import tenant_transaction
 from document_intelligence.ingestion.activities import IngestionActivities, PublicationActivities
 from document_intelligence.ingestion.adapters import (
+    ClamAVCommandScanner,
+    CompositeMalwareScanner,
     DoclingObjectParser,
     SourceAwareDocumentParser,
     SourceIntegrityScanner,
@@ -70,7 +72,17 @@ def build_worker_runtime(settings: Settings) -> WorkerRuntimeBundle:
         ledger=PostgresPublicationLedger(database_engine),
     )
     pipeline = IngestionPipeline(
-        scanner=SourceIntegrityScanner(reader),
+        scanner=CompositeMalwareScanner(
+            (
+                SourceIntegrityScanner(reader),
+                ClamAVCommandScanner(
+                    reader,
+                    command=_required(
+                        settings.malware_scanner_command, "malware_scanner_command"
+                    ),
+                ),
+            )
+        ),
         parser=parser,
         embedder=embedder,
         publisher=publisher,
@@ -169,6 +181,7 @@ def _missing_worker_settings(settings: Settings) -> tuple[str, ...]:
         "APP_TEMPORAL_TARGET": settings.temporal_target,
         "APP_S3_BUCKET": settings.s3_bucket,
         "APP_INGESTION_PIPELINE_VERSION": settings.ingestion_pipeline_version,
+        "APP_MALWARE_SCANNER_COMMAND": settings.malware_scanner_command,
     }
     return tuple(name for name, value in required.items() if not _is_present(value))
 

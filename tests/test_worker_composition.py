@@ -53,6 +53,7 @@ def settings(**updates: object) -> Settings:
         "ingestion_pipeline_version": "ingestion-v1",
         "retrieval_index_version": "chunks-v1",
         "answer_pipeline_version": "answers-v1",
+        "malware_scanner_command": "clamscan",
         "generation_provider": "openai",
         "generation_model": "gpt-5.6-luna",
         "openai_api_key": SecretStr("key"),

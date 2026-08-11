@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import importlib
 import importlib.util
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -27,6 +29,47 @@ class SourceIntegrityScanner:
         actual = await self._reader.sha256(object_key)
         if actual != sha256:
             raise ValueError("source object checksum mismatch")
+
+
+class MalwareDetectedError(ValueError):
+    pass
+
+
+class CompositeMalwareScanner:
+    """Run multiple scanners before parser execution."""
+
+    def __init__(self, scanners: tuple[SourceIntegrityScanner | ClamAVCommandScanner, ...]) -> None:
+        if not scanners:
+            raise ValueError("at least one scanner is required")
+        self._scanners = scanners
+
+    async def scan(self, object_key: str, sha256: str) -> None:
+        for scanner in self._scanners:
+            await scanner.scan(object_key, sha256)
+
+
+class ClamAVCommandScanner:
+    """Run an external ClamAV-compatible command against the source object."""
+
+    def __init__(self, reader: S3SourceObjectReader, *, command: str) -> None:
+        if not command or any(character.isspace() for character in command):
+            raise ValueError("malware scanner command must be one executable path")
+        self._reader = reader
+        self._command = command
+
+    async def scan(self, object_key: str, sha256: str) -> None:
+        with TemporaryDirectory(prefix="document-intelligence-scan-") as directory:
+            path = Path(directory) / "source.pdf"
+            await self._reader.download(object_key, path)
+            actual = await asyncio.to_thread(_sha256_file, path)
+            if actual != sha256:
+                raise ValueError("source object checksum mismatch")
+            result = await asyncio.to_thread(_run_scan_command, self._command, path)
+        if result.returncode == 0:
+            return
+        if result.returncode == 1:
+            raise MalwareDetectedError("malware scanner rejected source object")
+        raise RuntimeDependencyError("malware scanner command failed")
 
 
 class DoclingObjectParser:
@@ -75,3 +118,22 @@ def _convert_pdf(path: Path) -> dict[str, Any]:
     if not isinstance(exported, dict):
         raise ValueError("Docling export was not a mapping")
     return exported
+
+
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _run_scan_command(command: str, path: Path) -> subprocess.CompletedProcess[bytes]:
+    try:
+        return subprocess.run(
+            [command, "--no-summary", str(path)],
+            check=False,
+            capture_output=True,
+        )
+    except FileNotFoundError as error:
+        raise RuntimeDependencyError("malware scanner command is not installed") from error

@@ -26,6 +26,7 @@ services:
       APP_S3_ENDPOINT_URL: http://localstack:4566
       APP_OIDC_ISSUER: https://identity.local
       APP_API_KEY_PEPPER: local-dev-pepper-only
+      APP_MALWARE_SCANNER_COMMAND: clamscan
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:
@@ -53,6 +54,7 @@ services:
       APP_S3_ENDPOINT_URL: http://localstack:4566
       APP_OIDC_ISSUER: https://identity.local
       APP_API_KEY_PEPPER: local-dev-pepper-only
+      APP_MALWARE_SCANNER_COMMAND: clamscan
     depends_on:
       postgres:
         condition: service_healthy

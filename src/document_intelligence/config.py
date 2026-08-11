@@ -37,6 +37,7 @@ class Settings(BaseSettings):
     ingestion_pipeline_version: str | None = None
     retrieval_index_version: str | None = None
     answer_pipeline_version: str | None = None
+    malware_scanner_command: str | None = None
     answer_rate_limit_per_minute: int = Field(default=30, ge=1, le=10_000)
     answer_monthly_token_budget: int = Field(default=500_000, ge=1)
     answer_estimated_output_tokens: int = Field(default=1_200, ge=1, le=100_000)
@@ -61,6 +62,7 @@ class Settings(BaseSettings):
             "APP_INGESTION_PIPELINE_VERSION": self.ingestion_pipeline_version,
             "APP_RETRIEVAL_INDEX_VERSION": self.retrieval_index_version,
             "APP_ANSWER_PIPELINE_VERSION": self.answer_pipeline_version,
+            "APP_MALWARE_SCANNER_COMMAND": self.malware_scanner_command,
             "APP_GENERATION_PROVIDER": self.generation_provider,
             "APP_GENERATION_MODEL": self.generation_model,
             "APP_OPENAI_API_KEY": self.openai_api_key,
