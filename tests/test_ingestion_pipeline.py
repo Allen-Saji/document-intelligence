@@ -4,6 +4,7 @@ from uuid import UUID
 
 import pytest
 
+from document_intelligence.ingestion.activities import IngestionActivities
 from document_intelligence.ingestion.contracts import (
     IngestionDocument,
     PageExtraction,
@@ -140,3 +141,19 @@ async def test_pipeline_rejects_parser_output_for_a_different_verified_source() 
 
     with pytest.raises(ValueError, match="does not match"):
         await pipeline.run(request())
+
+
+@pytest.mark.asyncio
+async def test_temporal_activity_delegates_to_the_same_fail_closed_pipeline() -> None:
+    document = IngestionDocument(source=source(), pages=(PageExtraction(page_number=1, text="x"),))
+    publisher = Publisher()
+    activity = IngestionActivities(
+        IngestionPipeline(
+            scanner=Scanner(), parser=Parser(document), embedder=Embedder(), publisher=publisher
+        )
+    )
+
+    outcome = await activity.run_ingestion_pipeline(request())
+
+    assert outcome.stage == "published"
+    assert len(publisher.records) == 1

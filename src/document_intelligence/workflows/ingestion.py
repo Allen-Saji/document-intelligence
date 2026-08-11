@@ -8,6 +8,7 @@ from temporalio import workflow
 from temporalio.client import Client
 from temporalio.common import RetryPolicy, WorkflowIDConflictPolicy, WorkflowIDReusePolicy
 
+from document_intelligence.ingestion.pipeline import IngestionRequest
 from document_intelligence.storage.multipart import StoredObject
 
 INGESTION_TASK_QUEUE = "document-intelligence-ingestion-v1"
@@ -56,6 +57,21 @@ class IngestionWorkflow:
             retry_policy=RetryPolicy(maximum_attempts=3),
         )
         return str(input.document_version_id)
+
+
+@workflow.defn
+class DocumentIngestionWorkflow:
+    """Phase 2 workflow whose worker activity owns scan-to-publication recovery."""
+
+    @workflow.run
+    async def run(self, request: IngestionRequest) -> str:
+        await workflow.execute_activity(
+            "run_ingestion_pipeline",
+            request,
+            start_to_close_timeout=timedelta(minutes=45),
+            retry_policy=RetryPolicy(maximum_attempts=3),
+        )
+        return request.document_id
 
 
 class TemporalIngestionStarter:
