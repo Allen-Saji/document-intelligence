@@ -58,6 +58,7 @@ class UploadReservation(BaseModel):
     declared_size_bytes: int
     state: UploadState
     multipart_object_key: str
+    multipart_upload_id: str | None = None
     final_object_key: str | None = None
     sha256: str | None = None
     created_at: datetime
@@ -113,6 +114,20 @@ def reserve_upload(
     )
 
 
+def attach_multipart_upload(
+    reservation: UploadReservation, *, multipart_upload_id: str
+) -> UploadReservation:
+    """Record the provider upload ID needed to resume, complete, or abort a reservation."""
+
+    if reservation.state != UploadState.RESERVED:
+        raise ValueError("only reserved uploads can receive a multipart upload ID")
+    if reservation.multipart_upload_id is not None:
+        raise ValueError("multipart upload ID is already attached")
+    if not multipart_upload_id:
+        raise ValueError("multipart upload ID must not be empty")
+    return reservation.model_copy(update={"multipart_upload_id": multipart_upload_id})
+
+
 def complete_upload(
     reservation: UploadReservation,
     *,
@@ -127,6 +142,8 @@ def complete_upload(
         raise ValueError("upload completion timestamps must be timezone-aware")
     if reservation.state != UploadState.UPLOADED:
         raise ValueError("only uploaded reservations can be completed")
+    if reservation.multipart_upload_id is None:
+        raise ValueError("uploaded reservations require a multipart upload ID")
     if at > reservation.expires_at:
         return reservation.model_copy(update={"state": UploadState.EXPIRED})
     if verified_size_bytes != reservation.declared_size_bytes:
@@ -160,6 +177,8 @@ def record_uploaded(
         raise ValueError("upload receipt timestamps must be timezone-aware")
     if reservation.state != UploadState.RESERVED:
         raise ValueError("only reserved uploads can be marked uploaded")
+    if reservation.multipart_upload_id is None:
+        raise ValueError("reserved uploads require a multipart upload ID before receipt")
     if at > reservation.expires_at:
         return reservation.model_copy(update={"state": UploadState.EXPIRED})
     return reservation.model_copy(update={"state": UploadState.UPLOADED})

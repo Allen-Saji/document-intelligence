@@ -28,6 +28,7 @@ class Settings(BaseSettings):
     temporal_target: SecretStr | None = None
     s3_endpoint_url: SecretStr | None = None
     s3_bucket: str | None = None
+    s3_region: str = "us-east-1"
     oidc_issuer: SecretStr | None = None
     api_key_pepper: SecretStr | None = None
     generation_provider: str | None = None

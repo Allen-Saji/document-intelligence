@@ -5,6 +5,7 @@ from document_intelligence.documents.uploads import (
     UploadIntent,
     UploadReservation,
     UploadState,
+    attach_multipart_upload,
     complete_upload,
     record_uploaded,
     reserve_upload,
@@ -28,7 +29,7 @@ def reserve() -> UploadReservation:
 
 
 def test_upload_promotes_only_after_transfer_and_server_verification() -> None:
-    reservation = reserve()
+    reservation = attach_multipart_upload(reserve(), multipart_upload_id="upload-1")
     assert reservation.state == UploadState.RESERVED
     assert "consensus-spec" not in reservation.multipart_object_key
 
@@ -46,7 +47,8 @@ def test_upload_promotes_only_after_transfer_and_server_verification() -> None:
 
 
 def test_size_mismatch_fails_without_an_immutable_source_object() -> None:
-    uploaded = record_uploaded(reserve(), received_at=NOW + timedelta(minutes=1))
+    reservation = attach_multipart_upload(reserve(), multipart_upload_id="upload-1")
+    uploaded = record_uploaded(reservation, received_at=NOW + timedelta(minutes=1))
 
     failed = complete_upload(
         uploaded,
@@ -73,6 +75,7 @@ def test_expired_reservation_never_promotes() -> None:
         ttl=timedelta(minutes=1),
     )
 
-    expired = record_uploaded(reservation, received_at=NOW + timedelta(minutes=2))
+    attached = attach_multipart_upload(reservation, multipart_upload_id="upload-1")
+    expired = record_uploaded(attached, received_at=NOW + timedelta(minutes=2))
 
     assert expired.state == UploadState.EXPIRED
