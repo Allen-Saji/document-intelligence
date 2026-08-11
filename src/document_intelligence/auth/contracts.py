@@ -9,6 +9,8 @@ from uuid import UUID, uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
+from document_intelligence.core.tenancy import TenantContext
+
 
 class WorkspaceRole(StrEnum):
     OWNER = "owner"
@@ -106,6 +108,29 @@ class IssuedApiKey(BaseModel):
 
     record: ApiKeyRecord
     plaintext_token: str = Field(pattern=r"^diak_v1_[a-f0-9]{12}\.[A-Za-z0-9_-]{43}$")
+
+
+class ApiKeyPrincipal(BaseModel):
+    """Verified server-side principal derived from an active scoped API key."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    api_key_id: UUID
+    organization_id: UUID
+    workspace_id: UUID
+    actor_id: UUID
+    scopes: tuple[ApiKeyScope, ...]
+
+    def permits(self, scope: ApiKeyScope) -> bool:
+        return scope in self.scopes
+
+    def tenant_context(self, allowed_corpus_ids: tuple[UUID, ...]) -> TenantContext:
+        return TenantContext(
+            organization_id=self.organization_id,
+            workspace_id=self.workspace_id,
+            actor_id=self.actor_id,
+            allowed_corpus_ids=allowed_corpus_ids,
+        )
 
 
 def issue_api_key(
