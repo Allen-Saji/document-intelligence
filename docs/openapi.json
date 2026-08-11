@@ -68,6 +68,14 @@
             "title": "Missing Settings",
             "type": "array"
           },
+          "runtime_errors": {
+            "default": [],
+            "items": {
+              "type": "string"
+            },
+            "title": "Runtime Errors",
+            "type": "array"
+          },
           "service": {
             "title": "Service",
             "type": "string"
@@ -138,6 +146,11 @@
             "title": "Content Type",
             "type": "string"
           },
+          "corpus_id": {
+            "format": "uuid",
+            "title": "Corpus Id",
+            "type": "string"
+          },
           "declared_size_bytes": {
             "exclusiveMinimum": 0.0,
             "maximum": 262144000.0,
@@ -158,6 +171,7 @@
           }
         },
         "required": [
+          "corpus_id",
           "display_name",
           "original_filename",
           "declared_size_bytes"

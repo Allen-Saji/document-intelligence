@@ -2,8 +2,8 @@
 
 Document Intelligence is a production-focused application for investigating technical PDFs. It is designed to answer questions with claim-level citations that resolve to an immutable document version, physical PDF page, source passage, and page region.
 
-Phases 0 through 4 are complete as backend application contracts. The repository is not deployed
-and does not make production-readiness claims.
+Phases 0 through 5 are complete locally as backend and runtime composition contracts. The repository
+is not deployed and does not make production-readiness claims.
 
 ## Product contract
 
@@ -48,6 +48,10 @@ The repository already contains executable application contracts for:
   server before retrieval and generation
 - an OpenAI Responses API adapter that uses strict structured output and disables provider-side
   response storage
+- staging/production composition roots that wire database-backed API-key lookup, corpus
+  authorization, S3-compatible uploads, Temporal ingestion start, BGE-compatible query embedding,
+  OpenSearch retrieval, worker-side Docling parsing, OpenSearch publication, PostgreSQL publication
+  idempotency, and OpenAI generation when complete runtime settings and packages are present
 
 It also contains a pinned four-document parser corpus, a repeatable Docling benchmark, and saved
 Phase 0 probes for real retrieval, Temporal recovery, S3-compatible storage, and tracing.
@@ -95,6 +99,12 @@ Run the API:
 uv run uvicorn document_intelligence.api.app:create_app --factory --reload
 ```
 
+Run the ingestion worker:
+
+```bash
+uv run python -m document_intelligence.worker.main
+```
+
 Then open:
 
 - `GET http://127.0.0.1:8000/health/live`
@@ -107,11 +117,11 @@ after route changes with:
 uv run python scripts/export_openapi.py
 ```
 
-Upload and answer endpoints require a scoped `X-API-Key` and are intentionally unavailable until
-the runtime is configured with database-backed key lookup, tenant corpus authorization, storage,
-retrieval, and workflow adapters. The HTTP contract is stable and exercised with in-memory adapters
-in tests; the production composition root is the next deployment concern, not a bypass around
-tenant isolation.
+Upload and answer endpoints require a scoped `X-API-Key`. In staging/production, runtime settings
+wire database-backed API-key lookup, target-corpus authorization, S3-compatible multipart storage,
+Temporal ingestion start, BGE query embedding, OpenSearch retrieval, and OpenAI generation adapters.
+The HTTP contract is stable and exercised with in-memory adapters in tests; runtime composition is
+not a bypass around tenant isolation.
 
 Answer streaming accepts only the user question and optional conversation turns. Caller-supplied
 corpus IDs, tenant IDs, evidence, citations, or provider choices are rejected by schema validation
@@ -119,7 +129,8 @@ or ignored by the trusted server pipeline. Citation regions are conservative pag
 derived from parser provenance and carried through indexing, retrieval, answer validation, and the
 public citation payload.
 
-Readiness reports only missing configuration names. It never returns credential values.
+Readiness reports only missing configuration names and safe runtime composition errors. It never
+returns credential values.
 
 ## OpenAI generation smoke check
 
@@ -146,6 +157,9 @@ docker compose --profile search up -d opensearch
 
 # Add Temporal
 docker compose --profile workflow up -d temporal
+
+# Add API and ingestion worker containers
+docker compose --profile runtime up api ingestion-worker
 ```
 
 The local credentials in `compose.yaml` are development-only. Production secrets must come from the deployment platform's secret manager.
@@ -165,12 +179,14 @@ The local credentials in `compose.yaml` are development-only. Production secrets
 - No private customer document should be uploaded until production storage, auth, and retention
   controls are deployed and audited.
 - The parser corpus uses public technical documents and locally fetched evaluation fixtures.
-- The answer endpoint needs production wiring for corpus authorization, BGE-compatible query
-  embedding, retrieval adapters, and provider configuration before deployment.
+- The API and worker still need real production infrastructure, external malware scanning, live
+  infrastructure checks, and larger quality gates before deployment. These are production-readiness
+  gates, not missing Phase 5 composition contracts.
 
 ## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Phase 0 gates](docs/phase-0.md)
 - [Phase 4 answer boundary](docs/phase-4.md)
+- [Phase 5 production composition](docs/phase-5.md)
 - [Security boundary](docs/security.md)

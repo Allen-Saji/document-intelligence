@@ -25,6 +25,13 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+production = [
+  "docling>=2.48,<3",
+  "opensearch-py>=3.0,<4",
+  "opentelemetry-exporter-otlp>=1.36,<2",
+  "redis>=6.4,<7",
+  "sentence-transformers>=5.1,<6",
+]
 phase0 = [
   "docling>=2.48,<3",
   "langfuse>=3.3,<4",

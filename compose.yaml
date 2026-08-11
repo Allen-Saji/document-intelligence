@@ -1,6 +1,69 @@
 name: document-intelligence
 
 services:
+  api:
+    profiles: ["runtime"]
+    build:
+      context: .
+    command:
+      [
+        "uv",
+        "run",
+        "uvicorn",
+        "document_intelligence.api.app:create_app",
+        "--factory",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+      ]
+    env_file: .env.example
+    environment:
+      APP_ENV: staging
+      APP_DATABASE_URL: postgresql+asyncpg://document_intelligence_app:local-app-only@postgres:5432/document_intelligence
+      APP_OPENSEARCH_URL: http://opensearch:9200
+      APP_TEMPORAL_TARGET: temporal:7233
+      APP_S3_ENDPOINT_URL: http://localstack:4566
+      APP_OIDC_ISSUER: https://identity.local
+      APP_API_KEY_PEPPER: local-dev-pepper-only
+    ports:
+      - "127.0.0.1:8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      localstack:
+        condition: service_started
+    restart: unless-stopped
+
+  ingestion-worker:
+    profiles: ["runtime"]
+    build:
+      context: .
+    command: ["uv", "run", "python", "-m", "document_intelligence.worker.main"]
+    env_file: .env.example
+    environment:
+      APP_ENV: staging
+      APP_DATABASE_URL: postgresql+asyncpg://document_intelligence_app:local-app-only@postgres:5432/document_intelligence
+      APP_OPENSEARCH_URL: http://opensearch:9200
+      APP_TEMPORAL_TARGET: temporal:7233
+      APP_S3_ENDPOINT_URL: http://localstack:4566
+      APP_OIDC_ISSUER: https://identity.local
+      APP_API_KEY_PEPPER: local-dev-pepper-only
+    depends_on:
+      postgres:
+        condition: service_healthy
+      opensearch:
+        condition: service_healthy
+      temporal:
+        condition: service_started
+      localstack:
+        condition: service_started
+    restart: unless-stopped
+
   postgres:
     image: postgres:18.4-bookworm
     environment:

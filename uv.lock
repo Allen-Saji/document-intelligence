@@ -494,6 +494,13 @@ phase0 = [
     { name = "redis" },
     { name = "sentence-transformers" },
 ]
+production = [
+    { name = "docling" },
+    { name = "opensearch-py" },
+    { name = "opentelemetry-exporter-otlp" },
+    { name = "redis" },
+    { name = "sentence-transformers" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -511,23 +518,28 @@ requires-dist = [
     { name = "asyncpg", specifier = ">=0.30,<1" },
     { name = "boto3", specifier = ">=1.40,<2" },
     { name = "docling", marker = "extra == 'phase0'", specifier = ">=2.48,<3" },
+    { name = "docling", marker = "extra == 'production'", specifier = ">=2.48,<3" },
     { name = "fastapi", specifier = ">=0.116,<1" },
     { name = "langfuse", marker = "extra == 'phase0'", specifier = ">=3.3,<4" },
     { name = "openai", specifier = ">=2.53,<3" },
     { name = "opensearch-py", marker = "extra == 'phase0'", specifier = ">=3.0,<4" },
+    { name = "opensearch-py", marker = "extra == 'production'", specifier = ">=3.0,<4" },
     { name = "opentelemetry-api", specifier = ">=1.36,<2" },
     { name = "opentelemetry-exporter-otlp", marker = "extra == 'phase0'", specifier = ">=1.36,<2" },
+    { name = "opentelemetry-exporter-otlp", marker = "extra == 'production'", specifier = ">=1.36,<2" },
     { name = "opentelemetry-sdk", specifier = ">=1.36,<2" },
     { name = "pydantic", specifier = ">=2.11,<3" },
     { name = "pydantic-settings", specifier = ">=2.10,<3" },
     { name = "redis", marker = "extra == 'phase0'", specifier = ">=6.4,<7" },
+    { name = "redis", marker = "extra == 'production'", specifier = ">=6.4,<7" },
     { name = "sentence-transformers", marker = "extra == 'phase0'", specifier = ">=5.1,<6" },
+    { name = "sentence-transformers", marker = "extra == 'production'", specifier = ">=5.1,<6" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0.43,<3" },
     { name = "structlog", specifier = ">=25.4,<26" },
     { name = "temporalio", specifier = ">=1.16,<2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.35,<1" },
 ]
-provides-extras = ["phase0"]
+provides-extras = ["production", "phase0"]
 
 [package.metadata.requires-dev]
 dev = [
